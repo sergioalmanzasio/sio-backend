@@ -3,6 +3,11 @@ import authConfig from "../config/auth.config.js";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
+import crypto from "crypto";
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Generate token
 export const generateToken = (user_id) => {
@@ -32,28 +37,39 @@ export const getExpirationDate = () => {
 };
 
 // Send email
-export const sendEmail = async (email, subject, code, flow = 'rp') => {
-  const templatePath = path.join(__dirname, 'recovery-password-template.html');
-  const templatePathRegisterUser = path.join(__dirname, 'register-user-code-template.html');
-  const templatePathUserAuthorization = path.join(__dirname, 'user-authorization.html');
-  const templatePathWelcomeUser = path.join(__dirname, 'welcome-user-template.html');
+export const sendEmail = async (email, subject, code = '000000', personName, username = 'test@correo.com', flow = 'recovery-password') => {
+  const templatePath = path.join(__dirname, 'email-templates', 'recovery-password-template.html');
+  const templatePathRegisterUser = path.join(__dirname, 'email-templates', 'register-user-code-template.html');
+  const templatePathUserAuthorization = path.join(__dirname, 'email-templates', 'user-authorization.html');
+  const templatePathWelcomeUser = path.join(__dirname, 'email-templates', 'welcome-user-template.html');
+  const templatePathRegisterUserAssistant = path.join(__dirname, 'email-templates', 'register-user-assistant.html');
+  const templatePathRegisterUserClient = path.join(__dirname, 'email-templates', 'register-user-client.html');
+  const templatePathNotificationAdminSysplt = path.join(__dirname, 'email-templates', 'notification-admin-sysplt.html');
   let templateContent;
-  if (flow === 'ru') { // register user
+  if (flow === 'user-registration') { // user registration
     templateContent = fs.readFileSync(templatePathRegisterUser, 'utf-8');
-  } else if (flow === 'ua') { // user authorization
+  } else if (flow === 'user-authorization') { // user authorization
     templateContent = fs.readFileSync(templatePathUserAuthorization, 'utf-8');
-  }else if (flow === 'rp') { // recovery password
+  }else if (flow === 'recovery-password') { // recovery password
     templateContent = fs.readFileSync(templatePath, 'utf-8');
-  }else if (flow === 'wu') { // welcome user
+  }else if (flow === 'welcome-user') { // welcome user
     templateContent = fs.readFileSync(templatePathWelcomeUser, 'utf-8');
+  }else if (flow === 'register-user-assistant') { // register user assistant
+    templateContent = fs.readFileSync(templatePathRegisterUserAssistant, 'utf-8');
+  }else if (flow === 'register-user-client') { // register user client
+    templateContent = fs.readFileSync(templatePathRegisterUserClient, 'utf-8');
+  }else if (flow === 'notification-admin-sysplt') { // notification admin sysplt
+    templateContent = fs.readFileSync(templatePathNotificationAdminSysplt, 'utf-8');
   }
 
   
-  let htmlTemplate = templateContent.replace('{{code}}', code);
+  let htmlTemplate = templateContent.replace('{{code}}', code)
+                                    .replace('{{PersonName}}', personName)
+                                    .replace('{{username}}', username);
   
-  if (flow === 'wu') { // welcome user
-    let link = 'https://soyvaliente.org/register?ref=' + code;
-    let linkShow = `https://soyvaliente.org/register?ref=${code}`;
+  if (flow === 'welcome-user') { // welcome user
+    let link = 'https://sio.com/register?ref=' + code;
+    let linkShow = `https://sio.com/register?ref=${code}`;
     htmlTemplate = htmlTemplate.replace('{{link}}', link).replace('{{link-show}}', linkShow);
 
   }
@@ -74,8 +90,8 @@ export const sendEmail = async (email, subject, code, flow = 'rp') => {
     html:htmlTemplate,
     attachments: [
       {
-        filename: 'soy-valiente-logo.png',
-        path: path.join(__dirname, './image/soy-valiente-logo.png'),
+        filename: 'SIO-logo.jpg',
+        path: path.join(__dirname, 'email-templates', './image/SIO-logo.jpg'),
         cid: 'logo-web-app' // Debe coincidir con el src="cid:..."
       }
     ]
