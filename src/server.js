@@ -26,6 +26,7 @@ app.get('/', (req, res) => {
 //*** ROUTES
 app.use('/api/auth', routes.authRoutes);
 app.use('/api/signup', routes.signupRoutes);
+app.use('/api/document-type', routes.documentTypeRoutes);
 
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
