@@ -1,8 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+// import dotenv from 'dotenv';
 import cookieParser from "cookie-parser";
-// import routes from './routes/index';
+import pool from './config/db.config.js';
+import routes from './routes/index.js';
+import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
@@ -22,15 +24,9 @@ app.get('/', (req, res) => {
 });
 
 //*** ROUTES
-/*
-app.use('/api/auth', routes.authRoutes);
-app.use('/api/menu', routes.menuRoutes);
-app.use('/api/catalog', routes.catalogRoutes);
-app.use('/api/person', routes.personRoutes);
-app.use('/api/entrepreneurship', routes.entrepreneurshipRoutes);
-app.use('/api/career', routes.careerRoutes);
-app.use('/api/event', routes.eventRoutes);
-*/
+// app.use('/api/auth', routes.authRoutes);
+app.use('/api/signup', routes.signupRoutes);
+
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
 //*** Manejador de errores global simple (opcional, pero recomendado para producción)
