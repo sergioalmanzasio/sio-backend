@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
 });
 
 //*** ROUTES
-// app.use('/api/auth', routes.authRoutes);
+app.use('/api/auth', routes.authRoutes);
 app.use('/api/signup', routes.signupRoutes);
 
 
