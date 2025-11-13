@@ -15,7 +15,7 @@ pool.connect((err, client, release) => {
   if (err) {
     return console.error('Error adquiriendo cliente de la pool', err.stack);
   }
-  console.log('fp-001: Connect success!');
+  console.log('fp-003: Connect success!');
   client.query('SELECT NOW()', (err, result) => {
     release(); // Libera el cliente de vuelta a la pool
     if (err) {
