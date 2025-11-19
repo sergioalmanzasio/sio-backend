@@ -1,4 +1,4 @@
-import pool from "../config/db.config.js";
+import pool from "../../config/db.config.js";
 
 // Validate if user exist by username
 export const validateUserExist = async (username, res) => {
@@ -39,4 +39,48 @@ export const validatePersonExist = async (document, res) => {
     }
   );
 };
+
+// Get role id by role name cliente
+export const getRoleIdByClientName = async (res) => {
+  await pool.query(
+    "SELECT * FROM roles WHERE name = $1",
+    ["client"],
+    (err, result) => {
+      if (err) {
+        console.log('err', err);
+        return res.status(500).json({ message: "Error al consultar rol." });
+      }
+      if (result.rows.length === 0) {
+        return res.status(401).json({ message: "Rol no encontrado." });
+      }
+      console.log('result.rows[0].id', result.rows[0].id);
+      return res.status(200).json({ 
+        message: "Rol encontrado.", 
+        id: result.rows[0].id 
+      });
+    }
+  );
+}
+
+// Get role id by role name asesor
+export const getRoleIdByAssistantName = async (res) => {
+  await pool.query(
+    "SELECT * FROM roles WHERE name = $1",
+    ["assistant"],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: "Error al consultar rol." });
+      }
+      if (result.rows.length === 0) {
+        return res.status(401).json({ message: "Rol no encontrado." });
+      }
+      return res.status(200).json({ 
+        message: "Rol encontrado.", 
+        id: result.rows[0].id 
+      });
+    }
+  );  
+}
+
+
 
