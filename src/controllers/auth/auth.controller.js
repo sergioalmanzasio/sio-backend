@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
-import { comparePassword } from "../../utils/password.js";
+import { comparePassword, getPasswordHash } from "../../utils/password.js";
 import { generateToken } from "../../utils/shared.js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -18,7 +18,7 @@ export const signIn = (req, res) => {
   pool.query(
     "SELECT * FROM users WHERE username = $1",
     [username],
-    (err, result) => {
+    async (err, result) => {
       if (err) {
         return res.status(500).json({ message: "Error al consultar usuario." });
       }
@@ -31,7 +31,8 @@ export const signIn = (req, res) => {
       if (!user.is_active) {
         return res.status(401).json({ message: "Usuario no activo." });
       }
-      const isPasswordValid = comparePassword(password, user.password);
+
+      const isPasswordValid = await comparePassword(password, user.password);
       if (!isPasswordValid) {
         return res
           .status(401)
