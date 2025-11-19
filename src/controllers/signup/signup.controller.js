@@ -66,14 +66,14 @@ export const signUp = async (req, res) => {
       transversalUUID(),
       transversalUUID(),
     ],
-    (err, result) => {
+    async (err, result) => {
       if (err) {
         return res.status(500).json({ message: "Error al crear persona." });
       }
       const person_id = result.rows[0].id;
       let isActive = isAssistant ? false : true;
       // Create user
-      const hash = hashPassword(password);
+      const hash = await hashPassword(password);
       pool.query(
         "INSERT INTO users (person_id, username, password, is_active, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
         [
