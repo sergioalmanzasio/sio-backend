@@ -1,14 +1,13 @@
 import jwt from "jsonwebtoken";
 import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
-import { comparePassword, getPasswordHash } from "../../utils/password.js";
+import { comparePassword } from "../../utils/password.js";
 import { generateToken } from "../../utils/shared.js";
 import dotenv from "dotenv";
 dotenv.config();
 
 // SignIn
 export const signIn = (req, res) => {
-  console.log('req.body', req.body);
   const { username, password } = req.body;
   if (!username || !password) {
     return res
@@ -102,6 +101,7 @@ export const getSessionData = (req, res) => {
                   middle_name: person.middle_name,
                   last_name: person.last_name,
                   document: person.document,
+                  email: person.email,
                 }
                 // user: decoded,
                 // person,
