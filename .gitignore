@@ -4,5 +4,8 @@ node_modules
 # Logs
 logs
 
+# lock
+package-lock.json
+
 # Data Base
 data-base
