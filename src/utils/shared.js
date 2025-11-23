@@ -45,6 +45,7 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
   const templatePathRegisterUserAssistant = path.join(__dirname, 'email-templates', 'register-user-assistant.html');
   const templatePathRegisterUserClient = path.join(__dirname, 'email-templates', 'register-user-client.html');
   const templatePathNotificationAdminSysplt = path.join(__dirname, 'email-templates', 'notification-admin-sysplt.html');
+  const templatePathNotificationClientServiceRequest = path.join(__dirname, 'email-templates', 'notification-client-service-request.html');
   let templateContent;
   if (flow === 'user-registration') { // user registration
     templateContent = fs.readFileSync(templatePathRegisterUser, 'utf-8');
@@ -60,6 +61,8 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
     templateContent = fs.readFileSync(templatePathRegisterUserClient, 'utf-8');
   }else if (flow === 'notification-admin-sysplt') { // notification admin sysplt
     templateContent = fs.readFileSync(templatePathNotificationAdminSysplt, 'utf-8');
+  }else if (flow === 'notification-client-service-request') { // notification client service request
+    templateContent = fs.readFileSync(templatePathNotificationClientServiceRequest, 'utf-8');
   }
 
   
@@ -91,7 +94,7 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
     attachments: [
       {
         filename: 'SIO-logo.jpg',
-        path: path.join(__dirname, 'email-templates', './image/SIO-logo.jpg'),
+        path: path.join(__dirname, 'email-templates', './image/SIO-logo.png'),
         cid: 'logo-web-app' // Debe coincidir con el src="cid:..."
       }
     ]
