@@ -2,7 +2,6 @@
 
 # 📄 **README_BACKEND.md**
 
-```md
 # SIO Backend
 
 ## 🚀 SIO Backend
