@@ -31,6 +31,7 @@ app.use('/api/offer', routes.offerRoutes);
 app.use('/api/operator', routes.operatorRoutes);
 app.use('/api/category', routes.categoryRoutes);
 app.use('/api/benefit', routes.benefitRoutes);
+app.use('/api/menu', routes.menuRoutes);
 app.use('/api/request', routes.requestRoutes);
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)

@@ -6,6 +6,7 @@ import operatorRoutes from "./operator/operator.routes.js";
 import categoryRoutes from "./category/category.routes.js";
 import benefitRoutes from "./benefit/benefit.routes.js";
 import requestRoutes from "./request/request.routes.js";
+import menuRoutes from "./menu/menu.routes.js";
 
 export default {
   signupRoutes,
@@ -16,4 +17,5 @@ export default {
   categoryRoutes,
   benefitRoutes,
   requestRoutes,
+  menuRoutes,
 };
