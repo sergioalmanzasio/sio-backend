@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
 import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
-import { sendEmail } from "../../utils/shared.js";
+import { sendEmail, transversalUUID } from "../../utils/shared.js";
+
 
 // Add service_request
 export const addServiceRequest = (req, res) => {
@@ -90,10 +91,7 @@ export const addServiceRequest = (req, res) => {
                         "Error al agregar código de solicitud de servicio.",
                     });
                 }
-                serviceRequestCode =
-                  resultRequestCode.rows[0].code.split("-")[1];
-                // TODO: Enviar correo al cliente con el código de orden de servicio
-
+                serviceRequestCode = resultRequestCode.rows[0].code.split("-")[1];
                 const sendEmailRegisterUserAssistant = await sendEmail(
                   email,
                   "Confirmación de Orden de Servicio",
@@ -109,6 +107,51 @@ export const addServiceRequest = (req, res) => {
                       "Error al enviar correo de bienvenida a SIO al asesor.",
                   });
                 }
+
+                // Assigned service request to random service coordinator
+                // service_request_id = result.rows[0].id
+                // service_coordinator_id = random
+                // created_by = TRANSVERSALUUID
+                // updated_by = TRANSVERSALUUID
+                pool.query(
+                `
+                  INSERT INTO assigned_service_requests (
+                      service_request_id,
+                      mkt_user_id,
+                      created_by,
+                      updated_by
+                  )
+                  SELECT
+                      $1 AS service_request_id,
+                      (
+                          SELECT ur.user_id
+                          FROM user_roles ur
+                          WHERE ur.role_id = $3
+                          ORDER BY RANDOM()
+                          LIMIT 1
+                      ) AS mkt_user_id,
+                      $2 AS created_by,
+                      $2 AS updated_by
+                  RETURNING *;
+                `,
+                [
+                  result.rows[0].id, // $1 → service_request_id
+                  transversalUUID(),    // $2 → created_by, updated_by
+                  'b1345452-a506-473c-a6ec-eb9ae932e483'          // $3 → role_id para buscar el usuario aleatorio
+                ],
+                (err, resultAssignedServiceRequest) => {
+                  if (err) {
+                    console.error(err);
+                    // return res.status(500).json({
+                    //   message: "Error al asignar solicitud de servicio.",
+                    // });
+                  }
+
+                  // Si todo está bien
+                  console.log(resultAssignedServiceRequest.rows[0]);
+                }
+              );
+                
 
                 res.json({
                   process: "success",
@@ -265,7 +308,7 @@ export const getServiceRequestByClient = (req, res) => {
           FROM service_requests sr
           JOIN offers of ON sr.offer_id = of.id
           JOIN service_requests_code src ON src.service_request_id = sr.id
-          WHERE sr.client_user_id = $1`,
+          WHERE sr.client_user_id = $1 order by sr.created_at desc`,
           [client_user_id],
           (err, result) => {
         if (err) {
@@ -348,6 +391,142 @@ export const getServiceRequestDetails = (req, res) => {
         data: result.rows,
       });
     }
+    );
+  });
+};
+
+// Cancel service request by client email
+export const cancelServiceRequestByClient = (req, res) => {
+  const { service_request_id, email } = req.body;
+  if (!service_request_id || !email) {
+    return res.status(400).json({
+      process: "error",
+      message: "Todos los campos son obligatorios.",
+    });
+  }
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({
+      process: "session-expired",
+      message:
+        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+    });
+  }
+  jwt.verify(token, authConfig.secret, (err, decoded) => {
+    if (err) {
+      return res.status(401).json({
+        process: "session-expired",
+        message:
+          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
+      });
+    }
+    // Get client_user_id by email
+    pool.query(
+      `SELECT * FROM users WHERE username = $1`,
+      [email],
+      (err, result) => {
+        if (err) {
+          return res.status(500).json({
+            process: "error",
+            message: "Error al obtener solicitud de servicio.",
+          });
+        }
+        if (result.rows.length === 0) {
+          return res.status(404).json({
+            process: "error",
+            message: "El cliente no se encuentra registrado.",
+          });
+        }
+        const client_user_id = result.rows[0].id;
+        // Cancel service request
+        pool.query(
+          `UPDATE service_requests SET status = 'REJECTED_CLIENT' WHERE id = $1 AND client_user_id = $2`,
+          [service_request_id, client_user_id],
+          (err, result) => {
+            if (err) {
+              return res.status(500).json({
+                process: "error",
+                message: "Error al cancelar solicitud de servicio.",
+              });
+            }
+            return res.status(200).json({
+              process: "success",
+              message: "Solicitud de servicio cancelada exitosamente.",
+            });
+          }
+        );
+      }
+    );
+  });
+};
+
+// Get service request by service coordinator email
+export const getServiceRequestByServiceCoordinator = (req, res) => {
+  const { email } = req.body;
+  if (
+    !email ||
+    email === "" ||
+    email === null ||
+    email === undefined
+  ) {
+    return res.status(400).json({
+      process: "error",
+      message: "Todos los campos son obligatorios.",
+    });
+  }
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({
+      process: "session-expired",
+      message:
+        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+    });
+  }
+  jwt.verify(token, authConfig.secret, (err, decoded) => {
+    if (err) {
+      return res.status(401).json({
+        process: "session-expired",
+        message:
+          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
+      });
+    }
+    pool.query(
+        `SELECT sr.id as service_request_id, sr.offer_id as offer_id, of."name" as offer_name,
+           sr.status as status, sr.created_at as created_at,
+              TO_CHAR(sr.created_at, 'Mon DD "de" YYYY') AS created_at_formmated,
+              sr.assistant_code as assistant_code,
+          CASE sr.assistant_code
+              WHEN 'NO-CODE' THEN 'No aplica'
+              ELSE (
+                  SELECT pr."name"||' '||pr.last_name as seller_name
+                  FROM referral_codes rc 
+                  JOIN users us ON rc.seller_user_id = us.id
+                  JOIN persons pr ON us.person_id = pr.id
+                  AND rc.code = sr.assistant_code
+              )
+          END AS assited_by,
+          src.code as order_number 
+          FROM service_requests sr
+          JOIN offers of ON sr.offer_id = of.id
+          JOIN service_requests_code src ON src.service_request_id = sr.id
+          JOIN assigned_service_requests asr ON asr.service_request_id = sr.id
+          JOIN users usr ON asr.mkt_user_id = usr.id
+          AND usr.username = $1 order by sr.created_at desc`,
+        [email],
+        (err, result) => {
+        if (err) {
+          return res.status(500).json({
+            process: "error",
+            message: "Error al obtener solicitud de servicio.",
+          });
+        }
+        return res.status(200).json({
+          process: "success",
+          message: "Solicitudes de servicio obtenida exitosamente.",
+          count: result.rowCount,
+          data: result.rows,
+        });
+      }
     );
   });
 };
