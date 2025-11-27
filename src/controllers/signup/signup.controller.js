@@ -1,6 +1,10 @@
 import pool from "../../config/db.config.js";
 import { hashPassword } from "../../utils/password.js";
 import { sendEmail } from "../../utils/shared.js";
+import jwt from "jsonwebtoken";
+import authConfig from "../../config/auth.config.js";
+import { validatePersonExistByDocumentEmailPhone, validateUserExist } from "../common/common.controller.js";
+
 import {
   generateToken,
   transversalUUID,
@@ -244,3 +248,94 @@ export const signUpVerifyCode = async (req, res) => {
     }   
   );
 };
+
+// Register internal user
+// Entran datos de person(document,document_type_id,name,middle_name,last_name,email,phone,), role_id, password
+export const registerInternalUser = async (req, res) => {
+  console.log(req.body)
+  const { document, document_type_id, name, middle_name, last_name, email, phone, role_id, password } = req.body;
+  if (!document || !document_type_id || !name || !last_name || !email || !phone || !role_id || !password) {
+    return res
+      .status(400)
+      .json({ message: "Todos los campos son obligatorios." });
+  }
+  const hash = await hashPassword(password);
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({
+      process: "session-expired",
+      message:
+        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+    });
+  }
+  jwt.verify(token, authConfig.secret, (err, decoded) => {
+    if (err) {
+      return res.status(401).json({
+        process: "session-expired",
+        message:
+          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
+      });
+    }
+
+    validatePersonExistByDocumentEmailPhone(document, email, phone)
+      .then((validatePersonExist) => {
+        if (validatePersonExist.process === "error") {
+          return res.status(400).json({ message: validatePersonExist.message });
+        }
+      })
+      .catch((error) => {
+        console.log(error);
+        return res.status(500).json({ message: "Error al validar persona." });
+      })
+
+    validateUserExist(email)
+      .then((validateUserExist) => {
+        if (validateUserExist.process === "error") {
+          return res.status(400).json({ message: validateUserExist.message });
+        }
+      })
+      .catch((error) => {
+        console.log(error);
+        return res.status(500).json({ message: "Error al validar usuario." });
+      })
+      
+    const username = email;
+    const isActive = true;
+    const created_by = transversalUUID();
+    const updated_by = transversalUUID();  
+
+      // insert person
+    pool.query(
+      "INSERT INTO persons (document, document_type_id, name, middle_name, last_name, email, phone, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
+      [document, document_type_id, name, middle_name, last_name, email, phone, created_by, updated_by],
+      async (err, result) => {
+        if (err) {
+          return res.status(500).json({ message: "Error al crear persona." });
+        }
+        const person_id = result.rows[0].id;
+        // insert user
+        pool.query(
+          "INSERT INTO users (person_id, username, password, is_active, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+          [person_id, username, hash, isActive, created_by, updated_by],
+          async (err, result) => {
+            if (err) {
+              return res.status(500).json({ message: "Error al crear usuario." });
+            }
+            const user_id = result.rows[0].id;
+            // insert user_role
+            pool.query(
+              "INSERT INTO user_roles (user_id, role_id, created_by, updated_by) VALUES ($1, $2, $3, $4)",
+              [user_id, role_id, created_by, updated_by],
+              async (err, result) => {
+                if (err) {
+                  return res.status(500).json({ message: "Error al crear rol." });
+                }
+                return res.status(200).json({ message: "Usuario creado exitosamente." });
+              }
+            );
+          }
+        );
+      }
+    );
+  });
+}    
