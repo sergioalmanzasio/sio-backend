@@ -7,6 +7,8 @@ import categoryRoutes from "./category/category.routes.js";
 import benefitRoutes from "./benefit/benefit.routes.js";
 import requestRoutes from "./request/request.routes.js";
 import menuRoutes from "./menu/menu.routes.js";
+import personRoutes from "./person/person.routes.js";
+import referralRoutes from "./referral/referral.routes.js";
 
 export default {
   signupRoutes,
@@ -18,4 +20,6 @@ export default {
   benefitRoutes,
   requestRoutes,
   menuRoutes,
+  personRoutes,
+  referralRoutes
 };

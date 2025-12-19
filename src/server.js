@@ -33,6 +33,8 @@ app.use('/api/category', routes.categoryRoutes);
 app.use('/api/benefit', routes.benefitRoutes);
 app.use('/api/menu', routes.menuRoutes);
 app.use('/api/request', routes.requestRoutes);
+app.use('/api/person', routes.personRoutes);
+app.use('/api/referral', routes.referralRoutes);
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
 //*** Manejador de errores global simple (opcional, pero recomendado para producción)
