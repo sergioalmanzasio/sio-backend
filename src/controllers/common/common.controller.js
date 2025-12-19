@@ -52,6 +52,7 @@ export const validatePersonExistByDocumentEmailPhone = (document, email, phone) 
       [document, email, phone],
       (err, result) => {
         if (err) {
+          console.log('err', err);
           return reject({ process: "error", message: "Error en la base de datos." });
         }
 
@@ -67,6 +68,31 @@ export const validatePersonExistByDocumentEmailPhone = (document, email, phone) 
     );
   });
 };
+
+// Validate if email have code and expiresAt
+export const validateCodeAndExpiresAt = (email) => {
+  return new Promise((resolve, reject) => {
+    pool.query(
+      "SELECT * FROM signup_code WHERE email = $1 AND is_used = false AND expires_at > NOW()",
+      [email],
+      (err, result) => {
+        if (err) {
+          console.log('err', err);
+          return reject({ process: "error", message: "Error en la base de datos." });
+        }
+
+        if (result.rows.length > 0) {
+          return resolve({
+            process: "error",
+            message: "Ya existe código de verificación para el correo electrónico digitado.",
+          });
+        }
+
+        return resolve({ process: "success" });
+      }
+    );
+  });
+}
 
 // Get role id by role name cliente
 export const getRoleIdByClientName = async (res) => {
@@ -109,6 +135,97 @@ export const getRoleIdByAssistantName = async (res) => {
     }
   );  
 }
+
+// Get role ID by name
+export const getRoleIdByName = (roleName) => {
+  return new Promise((resolve, reject) => {
+    pool.query(
+      "SELECT * FROM roles WHERE name = $1",
+      [roleName],
+      (err, result) => {
+        if (err) {
+          return reject({ process: "error", message: "Error al consultar rol." });
+        }
+              
+        if (result.rows.length === 0) {
+          return reject({ process: "error", message: "Rol no encontrado." });
+        }
+        return resolve({ 
+          message: "Rol encontrado.", 
+          id: result.rows[0].id 
+        });
+      }
+    );
+  });
+}
+
+// Get document type id by acronym
+export const getDocumentTypeIdByAcronym = (acronym) => {
+  return new Promise((resolve, reject) => {
+    pool.query(
+      "SELECT * FROM document_types WHERE acronym = $1",
+      [acronym],
+      (err, result) => {
+        if (err) {
+          return reject({ process: "error", message: "Error al consultar tipo de documento." });
+        }
+                
+        if (result.rows.length === 0) {
+          return reject({ process: "error", message: "Tipo de documento no encontrado." });
+        }
+        return resolve({ 
+          message: "Tipo de documento encontrado.", 
+          id: result.rows[0].id 
+        });
+      }
+    );
+  });
+}
+
+export const getPersonIdByDocument = (document) => {
+  return new Promise((resolve, reject) => {
+    pool.query(
+      "SELECT * FROM persons WHERE document = $1",
+      [document],
+      (err, result) => {
+        if (err) {
+          return reject({ process: "error", message: "Error al consultar persona." });
+        }
+                
+        if (result.rows.length === 0) {
+          return reject({ process: "error", message: "Persona no encontrada." });
+        }
+        return resolve({ 
+          message: "Persona encontrada.", 
+          id: result.rows[0].id 
+        });
+      }
+    );
+  });
+}
+
+export const getUserIdByEmail = (email) => {
+  return new Promise((resolve, reject) => {
+    pool.query(
+      "SELECT * FROM users WHERE username = $1",
+      [email],
+      (err, result) => {
+        if (err) {
+          return reject({ process: "error", message: "Error al consultar usuario." });
+        }
+                
+        if (result.rows.length === 0) {
+          return reject({ process: "error", message: "Usuario no encontrado." });
+        }
+        return resolve({ 
+          message: "Usuario encontrado.", 
+          id: result.rows[0].id 
+        });
+      }
+    );
+  });
+}
+
 
 
 
