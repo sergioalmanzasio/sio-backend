@@ -31,6 +31,11 @@ export const generateVerificationCode = () => {
   return code;
 };
 
+// Generate code by uuid with last 6 characters
+export const generateCodeByUuid = (id) => {
+  return id.replace(/-/g, '').slice(-6);
+};
+
 // Get expiration date
 export const getExpirationDate = () => {
   return new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
