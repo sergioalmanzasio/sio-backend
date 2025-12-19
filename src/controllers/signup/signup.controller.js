@@ -3,7 +3,8 @@ import { hashPassword } from "../../utils/password.js";
 import { sendEmail } from "../../utils/shared.js";
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
-import { validatePersonExistByDocumentEmailPhone, validateUserExist } from "../common/common.controller.js";
+import { validatePersonExistByDocumentEmailPhone, validateUserExist, 
+  validateCodeAndExpiresAt, getDocumentTypeIdByAcronym } from "../common/common.controller.js";
 
 import {
   generateToken,
@@ -20,24 +21,26 @@ dotenv.config();
 export const signUp = async (req, res) => {
   const {
     document,
-    document_type_id,
+    document_type_acronym,
     name,
     middle_name,
     last_name,
     email,
     phone,
     password,
-    isAssistant,
+    roleName // referral, client, assistant
+    // isAssistant,
   } = req.body;
   if (
     !document ||
-    !document_type_id ||
+    !document_type_acronym ||
     !name ||
     !last_name ||
     !email ||
     !phone ||
     !password ||
-    isAssistant === undefined
+    !roleName 
+    // isAssistant === undefined
   ) {
     return res
       .status(400)
@@ -57,11 +60,20 @@ export const signUp = async (req, res) => {
   // }
 
   // insert person and get id
+
+  const documentType = await getDocumentTypeIdByAcronym(document_type_acronym);
+  if( documentType.process === "error" ) {
+    // TD-001: Error con obtención de ID de Tipo documento
+    return res.status(400).json({ 
+      process: "error",
+      message: "Se ha presentado un inconveniente y no se pudo realizar el registro (TD-001)" });
+  }
+
   pool.query(
     "INSERT INTO persons (document, document_type_id, name, middle_name, last_name, email, phone, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
     [
       document,
-      document_type_id,
+      documentType.id,
       name,
       middle_name,
       last_name,
@@ -75,7 +87,7 @@ export const signUp = async (req, res) => {
         return res.status(500).json({ message: "Error al crear persona." });
       }
       const person_id = result.rows[0].id;
-      let isActive = isAssistant ? false : true;
+      let isActive = roleName === 'assistant' ? false : true;
       // Create user
       const hash = await hashPassword(password);
       pool.query(
@@ -99,7 +111,7 @@ export const signUp = async (req, res) => {
             [user_id, user_id, person_id]
           );
 
-          const roleName = isAssistant ? "assistant" : "client";
+          // const roleName = isAssistant ? "assistant" : "client";
           pool.query(
             "SELECT * FROM roles WHERE name = $1",
             [roleName],
@@ -117,7 +129,23 @@ export const signUp = async (req, res) => {
                 [user_id, role_id, user_id, user_id]
               );
 
-              if (isAssistant) {
+              if( roleName === 'assistant' || roleName === 'referral' ) {
+                // Generate code with length 6 by 
+                // SUBSTRING(gen_random_uuid()::text FROM 1 FOR 6)
+                pool.query(
+                  `INSERT INTO referral_codes (seller_user_id, code, created_by) 
+                  VALUES ($1, SUBSTRING(gen_random_uuid()::text FROM 1 FOR 6), $2)`,
+                  [user_id, user_id],
+                  (err, result) => {
+                    if (err) {
+                      console.log('Error al crear código de referido.', err);
+                    }
+                  }
+                )
+              }
+
+              // TODO: refactorizar condición para manejar role referral
+              if (roleName === 'assistant') {
                 const sendEmailRegisterUserAssistant = await sendEmail(email, 'SIO - Bienvenido a SIO', '000000', name, '', 'register-user-assistant');
                 if (!sendEmailRegisterUserAssistant) {
                   return res.status(500).send({
@@ -142,7 +170,6 @@ export const signUp = async (req, res) => {
                 }
               }
               
-
               const token = generateToken(username);
               res.cookie("token", token, {
                 httpOnly: true,
@@ -152,7 +179,7 @@ export const signUp = async (req, res) => {
               });
               res.json({
                 process: "success",
-                message: isAssistant
+                message: roleName === 'assistant'
                   ? "Usuario creado exitosamente, entrará en un proceso de aprobación y le notificaremos cuando se active."
                   : "Bienvenido(a) a SIO. Ahora puede iniciar sesión.",
               });
@@ -168,12 +195,31 @@ export const signUp = async (req, res) => {
 
 // SignUp | Generate code
 export const signUpGenerateCode = async (req, res) => {
-  const { email, document, name } = req.body;
-  if (!email || !document || !name) {
+  const { email, document, name, phone } = req.body;
+  if (!email || !document || !name || !phone) {
     return res
       .status(400)
       .json({ message: "Todos los campos son obligatorios." });
   }
+
+  // Validate if email or document already exists
+  const validatePersonExist = await validatePersonExistByDocumentEmailPhone(document, email, phone);
+  if (validatePersonExist.process === "error") {
+    return res.status(400).json({ 
+      process: "error",
+      message: "Ya existe una persona con el documento o correo electrónico o teléfono digitado." 
+    });
+  }
+  
+  // Validate if email have code and expiresAt
+  const validateCodeAndExpires = await validateCodeAndExpiresAt(email);
+  if (validateCodeAndExpires.process === "error") {
+    return res.status(400).json({ 
+      process: "error",
+      message: 'Tiene un código de verificación activo, intente nuevamente en unos minutos.' 
+    });
+  }
+  
 
   const code = generateVerificationCode();
   const expiresAt = getExpirationDate();
@@ -186,10 +232,13 @@ export const signUpGenerateCode = async (req, res) => {
       if (err) {
         return res
           .status(500)
-          .json({ message: "Error al generar código. intentelo de nuevo." });
+          .json({ 
+            process: "error",
+            message: "Error al generar código. intentelo de nuevo." });
       }
       // Send email with code to user for registration
-      const sendEmailSignUpCode = await sendEmail(email, 'SIO - Código de verificación', code, name, 'user-registration');
+      const sendEmailSignUpCode = await sendEmail(email, 'SIO - Código de verificación', code, name, email, 'user-registration');
+      // email, subject, code = '000000', personName, username = 'test@correo.com', flow = 'recovery-password'
       if (!sendEmailSignUpCode) {
         return res.status(500).send({
           process: "error",
