@@ -51,7 +51,6 @@ export const getAllDocumentTypes = (req, res) => {
 // Get document type by id
 export const getDocumentTypeById = (req, res) => {
   const { id } = req.params;
-  console.log('id', id);
   pool.query(
     "SELECT * FROM document_types WHERE id = $1",
     [id],
