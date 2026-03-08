@@ -31,7 +31,7 @@ export const getOptionMenuByRoleId = (req, res) => {
               FROM role_options_app roa 
               JOIN roles rl ON roa.role_id = rl.id 
               JOIN options_app op ON op.id = roa.option_id 
-              WHERE roa.role_id = $1 AND roa.is_active = TRUE;`,
+              WHERE roa.role_id = $1 AND roa.is_active = TRUE order by op.order_number`,
       [role_id],
       (err, result) => {
         if (err) {
