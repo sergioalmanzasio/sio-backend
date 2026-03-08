@@ -100,7 +100,7 @@ export const getOfferByOperatorIdRestricted = (req, res) => {
     return res
       .status(401)
       .json({
-        message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",  
+        message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
       });
   }
   jwt.verify(token, authConfig.secret, (err, decoded) => {
@@ -146,7 +146,7 @@ export const getOfferByOperatorIdRestricted = (req, res) => {
           data: result.rows,
         });
       }
-    );           
+    );
   });
 };
 
@@ -186,7 +186,7 @@ export const getOfferByOperatorId = (req, res) => {
         data: result.rows,
       });
     }
-  );           
+  );
 
 };
 
@@ -197,7 +197,7 @@ export const getOfferByCategoryIdRestricted = (req, res) => {
     return res
       .status(401)
       .json({
-        message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",  
+        message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
       });
   }
   jwt.verify(token, authConfig.secret, (err, decoded) => {
@@ -243,7 +243,7 @@ export const getOfferByCategoryIdRestricted = (req, res) => {
           data: result.rows,
         });
       }
-    );           
+    );
   });
 };
 
@@ -283,13 +283,12 @@ export const getOfferByServiceId = (req, res) => {
         data: result.rows,
       });
     }
-  );           
+  );
 };
 
 // Get offer by operator id and category id, no authentication required
 export const getOfferByOperatorIdAndServiceId = (req, res) => {
   const { operator_id, service_id } = req.params;
-  console.log('------> ', operator_id, service_id);
   pool.query(
     `SELECT
         o.id AS offer_id,
@@ -323,5 +322,5 @@ export const getOfferByOperatorIdAndServiceId = (req, res) => {
         data: result.rows,
       });
     }
-  );           
+  );
 };

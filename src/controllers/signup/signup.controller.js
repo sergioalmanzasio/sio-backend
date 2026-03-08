@@ -3,70 +3,61 @@ import { hashPassword } from "../../utils/password.js";
 import { sendEmail } from "../../utils/shared.js";
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
-import { validatePersonExistByDocumentEmailPhone, validateUserExist, 
-  validateCodeAndExpiresAt, getDocumentTypeIdByAcronym } from "../common/common.controller.js";
+import { validatePersonExistByDocumentEmailPhone, validateUserExist, validateCodeAndExpiresAt, getDocumentTypeIdByAcronym, createPersonLocation, createUserAccount, isPersonHasUserByDocument } from "../common/common.controller.js";
 
-import {
-  generateToken,
-  transversalUUID,
-  generateVerificationCode,
-  getExpirationDate,
-} from "../../utils/shared.js";
+import { generateToken, transversalUUID, generateVerificationCode, getExpirationDate, } from "../../utils/shared.js";
 import dotenv from "dotenv";
 dotenv.config();
 
 //*** SignUp ***
 //*** Para realizar este proceso, debio primero validarse si ya existe un usuario con el correo enviado y una persona con el número de documento enviado. 
 //*** Si no existe, se procede a crear el usuario y la persona.
+//*** SC-AC-001: Crear usuario y persona
 export const signUp = async (req, res) => {
   const {
-    document,
-    document_type_acronym,
-    name,
-    middle_name,
-    last_name,
-    email,
-    phone,
-    password,
-    roleName // referral, client, assistant
+    document, document_type_acronym, name, middle_name, last_name, email, phone, password,
+    roleName, // referral, client, assistant
+    bankName,
+    accountNumber,
     // isAssistant,
   } = req.body;
-  if (
-    !document ||
-    !document_type_acronym ||
-    !name ||
-    !last_name ||
-    !email ||
-    !phone ||
-    !password ||
-    !roleName 
-    // isAssistant === undefined
-  ) {
-    return res
-      .status(400)
-      .json({ message: "Todos los campos son obligatorios." });
+
+  if (roleName == 'client') {
+    if (!document || !document_type_acronym || !name || !last_name || !email || !phone || !accountNumber) {
+      return res.status(400).json({ message: "Todos los campos son obligatorios." });
+    }
+  } else {
+    if (
+      !document || !document_type_acronym || !name || !last_name || !email || !phone || !password || !roleName || !bankName ||
+      !accountNumber
+      // isAssistant === undefined
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Todos los campos son obligatorios." });
+    }
+  }
+
+  if (roleName === 'referral') {
+    const isPersonHasUser = await isPersonHasUserByDocument(document);
+    if (isPersonHasUser.process) {
+      if (isPersonHasUser.exists_in_person === 'SI' && isPersonHasUser.exists_in_user === 'NO') {
+        return res.status(400).json({
+          process: "error",
+          message: "Esta persona ya está registrada como cliente y no puede asociarse como referido."
+        });
+      }
+    }
   }
 
   const username = email;
-
-  // const userExist = await validateUserExist(username, res);
-  // console.log('userExist', userExist);
-  // if (userExist.message === "Usuario encontrado.") {
-  //   return res.status(400).json({ message: "Usuario ya existe." });
-  // }
-  // const personExist = await validatePersonExist(document, res);
-  // if (personExist.message === "Persona encontrada.") {
-  //   return res.status(400).json({ message: "Número de documento ya existe." });
-  // }
-
-  // insert person and get id
-
   const documentType = await getDocumentTypeIdByAcronym(document_type_acronym);
-  if( documentType.process === "error" ) {
+  if (documentType.process === "error") {
     // TD-001: Error con obtención de ID de Tipo documento
-    return res.status(400).json({ 
+    return res.status(400).json({
       process: "error",
-      message: "Se ha presentado un inconveniente y no se pudo realizar el registro (TD-001)" });
+      message: "Se ha presentado un inconveniente y no se pudo realizar el registro (TD-001)"
+    });
   }
 
   pool.query(
@@ -84,10 +75,18 @@ export const signUp = async (req, res) => {
     ],
     async (err, result) => {
       if (err) {
-        return res.status(500).json({ message: "Error al crear persona." });
+        return res.status(500).json({ process: "error", message: "Error al crear persona." });
       }
+
+      const createPersonLocationResult = await createPersonLocation(result.rows[0].id, 'Pendiente', 'Pendiente', 'Pendiente', 'Pendiente', 'Pendiente', transversalUUID());
+      if (createPersonLocationResult.process === "error") {
+        console.log('Error al crear ubicación de persona (SC-AC-001).', createPersonLocationResult);
+        // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
+      }
+
       const person_id = result.rows[0].id;
       let isActive = roleName === 'assistant' ? false : true;
+
       // Create user
       const hash = await hashPassword(password);
       pool.query(
@@ -105,6 +104,11 @@ export const signUp = async (req, res) => {
             return res.status(500).json({ message: "Error al crear usuario." });
           }
           const user_id = result.rows[0].id;
+          const createUserAccountResult = await createUserAccount(user_id, bankName, accountNumber, transversalUUID());
+          if (createUserAccountResult.process === "error") {
+            console.log('Error al crear cuenta de usuario (SC-AC-001).', createUserAccountResult);
+            // return res.status(500).json({ process: "error", message: "Error al crear cuenta de usuario." });
+          }
           // Update createdby and updatedby in persons, by user self
           await pool.query(
             "UPDATE persons SET created_by = $1, updated_by = $2 WHERE id = $3",
@@ -123,13 +127,13 @@ export const signUp = async (req, res) => {
                 return res.status(401).json({ message: "Rol no encontrado." });
               }
               const role_id = result.rows[0].id;
-      
+
               pool.query(
                 "INSERT INTO user_roles (user_id, role_id, created_by, updated_by) VALUES ($1, $2, $3, $4)",
                 [user_id, role_id, user_id, user_id]
               );
 
-              if( roleName === 'assistant' || roleName === 'referral' ) {
+              if (roleName === 'assistant' || roleName === 'referral') {
                 // Generate code with length 6 by 
                 // SUBSTRING(gen_random_uuid()::text FROM 1 FOR 6)
                 pool.query(
@@ -160,7 +164,7 @@ export const signUp = async (req, res) => {
                     message: "Error al enviar correo de bienvenida a SIO al asesor.",
                   });
                 }
-              }else{
+              } else {
                 const sendEmailRegisterUserClient = await sendEmail(email, 'SIO - Bienvenido a SIO', '000000', name, '', 'register-user-client');
                 if (!sendEmailRegisterUserClient) {
                   return res.status(500).send({
@@ -169,7 +173,7 @@ export const signUp = async (req, res) => {
                   });
                 }
               }
-              
+
               const token = generateToken(username);
               res.cookie("token", token, {
                 httpOnly: true,
@@ -186,7 +190,7 @@ export const signUp = async (req, res) => {
             }
           );
 
-          
+
         }
       );
     }
@@ -205,21 +209,21 @@ export const signUpGenerateCode = async (req, res) => {
   // Validate if email or document already exists
   const validatePersonExist = await validatePersonExistByDocumentEmailPhone(document, email, phone);
   if (validatePersonExist.process === "error") {
-    return res.status(400).json({ 
+    return res.status(400).json({
       process: "error",
-      message: "Ya existe una persona con el documento o correo electrónico o teléfono digitado." 
+      message: "El documento, correo electrónico o teléfono ya están registrados."
     });
   }
-  
+
   // Validate if email have code and expiresAt
   const validateCodeAndExpires = await validateCodeAndExpiresAt(email);
   if (validateCodeAndExpires.process === "error") {
-    return res.status(400).json({ 
+    return res.status(400).json({
       process: "error",
-      message: 'Tiene un código de verificación activo, intente nuevamente en unos minutos.' 
+      message: 'Tiene un código de verificación activo, intente nuevamente en unos minutos.'
     });
   }
-  
+
 
   const code = generateVerificationCode();
   const expiresAt = getExpirationDate();
@@ -232,9 +236,10 @@ export const signUpGenerateCode = async (req, res) => {
       if (err) {
         return res
           .status(500)
-          .json({ 
+          .json({
             process: "error",
-            message: "Error al generar código. intentelo de nuevo." });
+            message: "Error al generar código. intentelo de nuevo."
+          });
       }
       // Send email with code to user for registration
       const sendEmailSignUpCode = await sendEmail(email, 'SIO - Código de verificación', code, name, email, 'user-registration');
@@ -244,13 +249,14 @@ export const signUpGenerateCode = async (req, res) => {
           process: "error",
           message: "Error al enviar correo del código de registro.",
         });
-      } 
+      }
       return res
         .status(200)
-        .json({ 
-          process: "success", 
+        .json({
+          process: "success",
           code,
-          message: `Código generado y enviado al correo electrónico ${email}.` });
+          message: `Código generado y enviado al correo electrónico ${email}.`
+        });
     }
   );
 };
@@ -294,14 +300,13 @@ export const signUpVerifyCode = async (req, res) => {
             .json({ message: "Código verificado exitosamente." });
         }
       );
-    }   
+    }
   );
 };
 
 // Register internal user
 // Entran datos de person(document,document_type_id,name,middle_name,last_name,email,phone,), role_id, password
 export const registerInternalUser = async (req, res) => {
-  console.log(req.body)
   const { document, document_type_id, name, middle_name, last_name, email, phone, role_id, password } = req.body;
   if (!document || !document_type_id || !name || !last_name || !email || !phone || !role_id || !password) {
     return res
@@ -347,13 +352,13 @@ export const registerInternalUser = async (req, res) => {
         console.log(error);
         return res.status(500).json({ message: "Error al validar usuario." });
       })
-      
+
     const username = email;
     const isActive = true;
     const created_by = transversalUUID();
-    const updated_by = transversalUUID();  
+    const updated_by = transversalUUID();
 
-      // insert person
+    // insert person
     pool.query(
       "INSERT INTO persons (document, document_type_id, name, middle_name, last_name, email, phone, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
       [document, document_type_id, name, middle_name, last_name, email, phone, created_by, updated_by],

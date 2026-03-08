@@ -11,9 +11,10 @@ const __dirname = path.dirname(__filename);
 
 // Generate token
 export const generateToken = (user_id) => {
-  return jwt.sign({ 
-    id: user_id }, 
-    authConfig.secret, 
+  return jwt.sign({
+    id: user_id
+  },
+    authConfig.secret,
     {
       expiresIn: authConfig.expiresIn,
     }
@@ -56,25 +57,25 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
     templateContent = fs.readFileSync(templatePathRegisterUser, 'utf-8');
   } else if (flow === 'user-authorization') { // user authorization
     templateContent = fs.readFileSync(templatePathUserAuthorization, 'utf-8');
-  }else if (flow === 'recovery-password') { // recovery password
+  } else if (flow === 'recovery-password') { // recovery password
     templateContent = fs.readFileSync(templatePath, 'utf-8');
-  }else if (flow === 'welcome-user') { // welcome user
+  } else if (flow === 'welcome-user') { // welcome user
     templateContent = fs.readFileSync(templatePathWelcomeUser, 'utf-8');
-  }else if (flow === 'register-user-assistant') { // register user assistant
+  } else if (flow === 'register-user-assistant') { // register user assistant
     templateContent = fs.readFileSync(templatePathRegisterUserAssistant, 'utf-8');
-  }else if (flow === 'register-user-client') { // register user client
+  } else if (flow === 'register-user-client') { // register user client
     templateContent = fs.readFileSync(templatePathRegisterUserClient, 'utf-8');
-  }else if (flow === 'notification-admin-sysplt') { // notification admin sysplt
+  } else if (flow === 'notification-admin-sysplt') { // notification admin sysplt
     templateContent = fs.readFileSync(templatePathNotificationAdminSysplt, 'utf-8');
-  }else if (flow === 'notification-client-service-request') { // notification client service request
+  } else if (flow === 'notification-client-service-request') { // notification client service request
     templateContent = fs.readFileSync(templatePathNotificationClientServiceRequest, 'utf-8');
   }
 
-  
+
   let htmlTemplate = templateContent.replace('{{code}}', code)
-                                    .replace('{{PersonName}}', personName)
-                                    .replace('{{username}}', username);
-  
+    .replace('{{PersonName}}', personName)
+    .replace('{{username}}', username);
+
   if (flow === 'welcome-user') { // welcome user
     let link = 'https://sio.com/register?ref=' + code;
     let linkShow = `https://sio.com/register?ref=${code}`;
@@ -95,7 +96,7 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
     to: email,
     subject: subject,
     // text: text,
-    html:htmlTemplate,
+    html: htmlTemplate,
     attachments: [
       {
         filename: 'SIO-logo.jpg',
@@ -112,5 +113,11 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
     console.error('Error al enviar correo (process: ' + process + '), email: ' + email + ':', error);
     return false;
   }
-  
+
 };
+
+// GET USER SYSTEM ENV 
+export const getUserSystemEnv = () => {
+  return process.env.EMAILS_SYS;
+};
+
