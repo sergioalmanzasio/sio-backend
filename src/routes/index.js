@@ -9,6 +9,10 @@ import requestRoutes from "./request/request.routes.js";
 import menuRoutes from "./menu/menu.routes.js";
 import personRoutes from "./person/person.routes.js";
 import referralRoutes from "./referral/referral.routes.js";
+import paymentsRoutes from "./admin/payments.routes.js";
+import adminRoutes from "./admin/admin.routes.js";
+import dashboardRoutes from "./admin/dashboard.routes.js";
+import coordinateServiceDashboardRoutes from "./coordinate_service/dashboard.routes.js";
 
 export default {
   signupRoutes,
@@ -21,5 +25,9 @@ export default {
   requestRoutes,
   menuRoutes,
   personRoutes,
-  referralRoutes
+  referralRoutes,
+  paymentsRoutes,
+  adminRoutes,
+  dashboardRoutes,
+  coordinateServiceDashboardRoutes
 };
