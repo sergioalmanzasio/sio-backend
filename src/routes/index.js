@@ -13,6 +13,7 @@ import paymentsRoutes from "./admin/payments.routes.js";
 import adminRoutes from "./admin/admin.routes.js";
 import dashboardRoutes from "./admin/dashboard.routes.js";
 import coordinateServiceDashboardRoutes from "./coordinate_service/dashboard.routes.js";
+import bonusRoutes from "./admin/bonus.routes.js";
 
 export default {
   signupRoutes,
@@ -29,5 +30,6 @@ export default {
   paymentsRoutes,
   adminRoutes,
   dashboardRoutes,
-  coordinateServiceDashboardRoutes
+  coordinateServiceDashboardRoutes,
+  bonusRoutes
 };
