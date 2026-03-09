@@ -39,6 +39,7 @@ app.use('/api/payments', routes.paymentsRoutes);
 app.use('/api/admin', routes.adminRoutes);
 app.use('/api/admin/dashboard', routes.dashboardRoutes);
 app.use('/api/coordinate-service/dashboard', routes.coordinateServiceDashboardRoutes);
+app.use('/api/bonus', routes.bonusRoutes);
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
 //*** Manejador de errores global simple (opcional, pero recomendado para producción)
