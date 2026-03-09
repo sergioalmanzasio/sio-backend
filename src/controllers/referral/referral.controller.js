@@ -889,7 +889,7 @@ export const getTotalCommision = async (req, res) => {
 }
 
 // TODO: proceso para solicitar pago de comisiones por parte del usuario referido, parametro de entrada: referral_code, amount, payment_method, status: REQUESTED_PAYMENT,  se crea registro en commission_payments y se relacionan comisiones.
-// RC-AC-007
+// RC-AC-009
 // Referido solicita el pago de sus comisiones, se crea registro en commission_payments con estado REQUESTED_PAYMENT y se relacionan comisiones.
 export const requestPaymentCommission = async (req, res) => {
   try {
@@ -987,5 +987,4 @@ export const requestPaymentCommission = async (req, res) => {
   }
 };
 
-// TODO: proceso para cambiar estado de comisiones a PAID, cuando se realiza el pago
 
