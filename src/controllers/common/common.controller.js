@@ -215,8 +215,6 @@ export const getUserIDByReferralSystemSIO = async (res) => {
   });
 }
 
-
-
 export const validateIsAdminPlt = async (userId) => {
   try {
     const result = await pool.query(
@@ -291,6 +289,52 @@ export const userWithPermissions = (token) => {
   })
 }
 
+export const validateUserIsActive = (token) => {
+  return new Promise((resolve, reject) => {
+    if (!token) {
+      return resolve({
+        process: "session-expired",
+        message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando."
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, authConfig.secret);
+    } catch (err) {
+      return resolve({
+        process: "session-expired",
+        message: "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad."
+      });
+    }
+
+    pool.query(
+      "SELECT * FROM users WHERE id = $1 AND is_active = TRUE",
+      [decoded.id],
+      (err, result) => {
+        if (err) {
+          return resolve({
+            process: "error",
+            message: "Error al consultar usuario."
+          });
+        }
+
+        if (result.rows.length === 0) {
+          return resolve({
+            process: "error",
+            message: "Usuario no encontrado."
+          });
+        }
+
+        return resolve({
+          process: "success",
+          message: "Usuario validado exitosamente.",
+          id: decoded.id
+        });
+      }
+    );
+  })
+}
 
 
 // Get role ID by name
