@@ -76,7 +76,9 @@ export const getOffers = (req, res) => {
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
-    JOIN operators op ON op.id = o.operator_id order by o.price asc`,
+    JOIN operators op ON op.id = o.operator_id 
+    WHERE o.is_active = TRUE AND CURRENT_DATE BETWEEN o.date_start AND o.date_end
+    order by o.price asc`,
     (err, result) => {
       if (err) {
         return res
@@ -171,7 +173,8 @@ export const getOfferByOperatorId = (req, res) => {
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
     JOIN operators op ON op.id = o.operator_id
-    WHERE op.id = $1`,
+    WHERE op.id = $1 AND o.is_active = TRUE
+    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end`,
     [operator_id],
     (err, result) => {
       if (err) {
@@ -268,7 +271,8 @@ export const getOfferByServiceId = (req, res) => {
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
     JOIN operators op ON op.id = o.operator_id
-    WHERE c.id = $1`,
+    WHERE c.id = $1 AND o.is_active = TRUE
+    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end`,
     [service_id],
     (err, result) => {
       if (err) {
@@ -307,7 +311,8 @@ export const getOfferByOperatorIdAndServiceId = (req, res) => {
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
     JOIN operators op ON op.id = o.operator_id
-    WHERE op.id = $1 AND c.id = $2`,
+    WHERE op.id = $1 AND c.id = $2 AND o.is_active = TRUE
+    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end`,
     [operator_id, service_id],
     (err, result) => {
       if (err) {
