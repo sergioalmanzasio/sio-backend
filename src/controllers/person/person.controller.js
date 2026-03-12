@@ -268,9 +268,9 @@ export const getPersonByEmail = async (req, res) => {
             if (resultLocation.rows.length === 0) {
               console.log('No se encontro ubicación de la persona (PC-AC-003)');
               // return res.status(401).json({ process: "person-not-found", message: "Persona no encontrada." });
+            } else {
+              dataLocation = resultLocation.rows[0];
             }
-
-            dataLocation = resultLocation.rows[0];
 
             const userID = await getUserIdByEmail(email);
             if (userID.process === "error") {
@@ -284,8 +284,9 @@ export const getPersonByEmail = async (req, res) => {
             if (userDataBank.process === "error") {
               console.log('Error al obtener datos bancarios (PC-AC-003).', userDataBank);
               // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
+            } else {
+              dataBank = userDataBank.data;
             }
-            dataBank = userDataBank.data;
 
             return res.status(200).json({
               process: "success",
