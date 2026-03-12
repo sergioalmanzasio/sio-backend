@@ -536,11 +536,11 @@ export const getUserDataBankByUserId = (user_id) => {
       [user_id],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar cuenta de usuario." });
+          return resolve({ process: "error", message: "Error al consultar cuenta de usuario." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Cuenta de usuario no encontrada." });
+          return resolve({ process: "error", message: "Cuenta de usuario no encontrada." });
         }
         return resolve({
           message: "Cuenta de usuario encontrada.",
