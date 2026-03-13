@@ -260,3 +260,72 @@ export const getPaidCommissions = async (req, res) => {
     });
   }
 }
+
+// PCO-AC-004
+// Get paid bonuses with base bonus_payments
+export const getPaidBonuses = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    const validateUserWithPermissions = await userWithPermissions(token);
+    if (validateUserWithPermissions.process !== "success") {
+      return res.status(401).json({
+        process: validateUserWithPermissions.process,
+        message: validateUserWithPermissions.message,
+      });
+    }
+
+    pool.query(
+      `SELECT TO_CHAR(
+          btr.requested_at,
+            'Mon FMDD "de" YYYY hh12:mi pm'
+        ) AS requested_at,
+        TO_CHAR(
+          btr.paid_at,
+            'Mon FMDD "de" YYYY hh12:mi pm'
+        ) AS paid_at,
+        '$ ' || REPLACE(
+          TO_CHAR(btr.amount, 'FM999,999,999,990'), ',', '.'
+        ) AS bonus_amount_formmated,
+        btr.amount AS bonus_amount,
+        prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name as referral_name,
+        uac.account_number, ban."name" bank_name
+      FROM bonus_transactions btr
+      LEFT JOIN users usr ON usr.id = btr.referral_user_id
+      JOIN persons prs ON prs.id = usr.person_id
+      JOIN user_accounts uac ON usr.id = uac.user_id
+      JOIN banks ban ON uac.bank_id = ban.id
+      WHERE btr.status = 'PAID'`,
+      (err, result) => {
+        if (err) {
+          return res.status(500).json({
+            process: "error",
+            message: "Lo sentimos, no se pudo obtener los pagos requeridos, inténtelo más tarde. (PCO-AC-004).",
+          });
+        }
+
+        const total_amount = result.rows.reduce((acc, row) => acc + Number(row.bonus_amount), 0);
+        const total_amount_format = new Intl.NumberFormat('es-CO', {
+          style: 'currency',
+          currency: 'COP',
+          minimumFractionDigits: 0,
+        }).format(total_amount);
+
+        return res.status(200).json({
+          process: "success",
+          message: "Pagos requeridos obtenidos exitosamente.",
+          count: result.rows.length,
+          total_amount: total_amount_format,
+          data: result.rows,
+        });
+      }
+    );
+  } catch (error) {
+    console.log("ERROR GLOBAL getPaidBonuses: ", error);
+
+    return res.status(500).json({
+      process: "error",
+      message:
+        "Lo sentimos, no se pudo obtener los pagos requeridos, inténtelo más tarde. (PCO-AC-004).",
+    });
+  }
+}
