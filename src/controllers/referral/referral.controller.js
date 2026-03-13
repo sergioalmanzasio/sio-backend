@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
 import { transversalUUID } from "../../utils/shared.js";
-import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken } from "../common/common.controller.js";
+import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken, validateUserIsActive } from "../common/common.controller.js";
 
 // RC : Referral Controller
 // AC : Action Controller
@@ -521,6 +521,16 @@ export const calculateCommission = async (req, res) => {
       });
     }
 
+    // TODO: validar si aplica bono
+    // ===============================
+    // Validar si aplica bono
+    // ===============================
+    const bonusResult = await referralAppliesForBonusV2(resultInsert.rows[0].referral_id)
+
+    if (bonusResult.process === 'error') {
+      console.log("ERROR GLOBAL referralAppliesForBonus: ", bonusResult);
+    }
+
     return res.status(200).json({
       process: "success",
       message: "Comisión calculada exitosamente.",
@@ -986,5 +996,468 @@ export const requestPaymentCommission = async (req, res) => {
     });
   }
 };
+
+// RC-AC-010
+// Referido consulta los bonos que tiene generado
+export const getReferralBonusesGenerated = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    const validateUser = await validateUserIsActive(token);
+    if (validateUser.process !== "success") {
+      return res.status(401).json({
+        process: validateUser.process,
+        message: validateUser.message,
+      });
+    }
+
+    const referralUserID = validateUser.id;
+    console.log(">>> referralUserID", referralUserID);
+
+    const result = await pool.query(
+      `SELECT btr.id AS bonus_transaction_id, 
+      CASE bon.apply_type
+        WHEN 'FIRST_SALE' THEN 'Primera venta'
+        WHEN 'EVERY_SALE' THEN 'Cada venta'
+        WHEN 'ONCE' THEN 'Una venta por usuario'
+        WHEN 'AFTER_N_SALES' THEN 'Hito/meta'
+      END AS apply_type, 
+      btr.amount as bonus_amount, 
+      '$' || REPLACE(
+        TO_CHAR(btr.amount, 'FM999,999,999,990'),
+          ',', '.'
+      ) as bonus_amount_formatted, 
+      CASE btr.status
+        WHEN 'GENERATED' THEN 'Genereada'
+        WHEN 'APPROVED' THEN 'Aprobada'
+        WHEN 'PAID' THEN 'Pagada'
+      END AS bonus_status_translate,
+      TO_CHAR(btr.created_at, 'DD') || ' de ' ||
+        INITCAP(
+          CASE EXTRACT(MONTH FROM btr.created_at)
+            WHEN 1 THEN 'ene'
+            WHEN 2 THEN 'feb'
+            WHEN 3 THEN 'mar'
+            WHEN 4 THEN 'abr'
+            WHEN 5 THEN 'may'
+            WHEN 6 THEN 'jun'
+            WHEN 7 THEN 'jul'
+            WHEN 8 THEN 'ago'
+            WHEN 9 THEN 'sep'
+            WHEN 10 THEN 'oct'
+            WHEN 11 THEN 'nov'
+            WHEN 12 THEN 'dic'
+            END
+        ) || ' de ' || TO_CHAR(btr.created_at, 'YYYY') AS created_at_formatted
+      FROM bonus_transactions btr
+      LEFT JOIN users usr ON usr.id = btr.referral_user_id
+      LEFT JOIN persons prs ON prs.id = usr.person_id
+      LEFT JOIN bonuses bon ON bon.id = btr.bonus_id
+      WHERE usr.id = $1
+      AND btr.status = 'GENERATED'`,
+      [referralUserID]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        process: "info",
+        message: "En esto momentos no tiene bonos generados para solicitar pago.",
+        data: []
+      });
+    }
+
+    const resultTokenized = result.rows.map(row => {
+      return {
+        ...row,
+        bonus_transaction_id: jwt.sign({ bonusTransactionId: row.bonus_transaction_id }, authConfig.secret, {
+          expiresIn: "1h"
+        })
+      }
+    })
+
+    let totalBonus = 0;
+    result.rows.forEach((bonus) => {
+      totalBonus += parseFloat(bonus.bonus_amount);
+    });
+    const totalBonusNumber = Number(totalBonus);
+    const totalBonusFormatted = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(totalBonusNumber);
+
+    return res.status(200).json({
+      process: "success",
+      message: "Bonos generados obtenidos correctamente.",
+      total_bonus: totalBonusFormatted,
+      data: resultTokenized,
+    });
+
+  } catch (error) {
+    console.log("ERROR GLOBAL getReferralBonusesGenerated: ", error);
+
+    return res.status(500).json({
+      process: "error",
+      message:
+        "Lo sentimos, no se pudo obtener la comisión, inténtelo más tarde. (RC-AC-010).",
+    });
+  }
+}
+
+// RC-AC-011
+// Referido solicita pago de bono(s)
+export const requestPaymentBonus = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    const validateUser = await validateUserIsActive(token);
+    if (validateUser.process !== "success") {
+      return res.status(401).json({
+        process: validateUser.process,
+        message: validateUser.message,
+      });
+    }
+
+    const { bonusTransactionTokens } = req.body;
+    if (!bonusTransactionTokens) {
+      return res.status(400).json({
+        process: "error",
+        message: "El token de la transacción es obligatorio.",
+      });
+    }
+
+    const bonusTransactionIds = bonusTransactionTokens.map(token => {
+      const decoded = jwt.verify(token, authConfig.secret);
+      return decoded.bonusTransactionId;
+    });
+
+    console.log(">>> bonusTransactionIds", bonusTransactionIds);
+
+    let count = 0;
+    bonusTransactionIds.forEach(async (bonusTransactionId) => {
+      const result = await pool.query(
+        `UPDATE bonus_transactions SET status = $1, requested_at = $2 WHERE id = $3`,
+        ["REQUESTED_PAYMENT", new Date(), bonusTransactionId]
+      );
+      count++;
+    });
+    console.log(">>> count", count);
+    console.log(">>> bonusTransactionIds.length", bonusTransactionIds.length);
+
+    if (count === bonusTransactionIds.length) {
+      return res.status(200).json({
+        process: "success",
+        message: "Bono(s) solicitado(s) correctamente.",
+      });
+    }
+
+    return res.status(200).json({
+      process: "success",
+      message: "Algunos bonos no se lograron solicitar, inténtelo más tarde.",
+    });
+
+
+
+  } catch (error) {
+    console.log("ERROR GLOBAL updateBonusStatus: ", error);
+
+    return res.status(500).json({
+      process: "error",
+      message:
+        "Lo sentimos, no se pudo actualizar el estado del bono, inténtelo más tarde. (RC-AC-011).",
+    });
+  }
+}
+
+// RC-AC-012
+// Referido consulta el historial de sus bonos filtrado por estado
+export const getBonusesHistory = async (req, res) => {
+  try {
+    const user = await getUserIdByToken(req);
+    if (user.process !== "success") {
+      return res.status(401).json({
+        process: user.process,
+        message: user.message,
+      });
+    }
+
+    const { status_name } = req.query;
+
+    if (!status_name) {
+      return res.status(400).json({
+        process: "error",
+        message: "El nombre del estado es obligatorio.",
+      });
+    }
+
+    // Mapeo de nombres en español a valores en BD
+    const STATUS_MAP = {
+      'Generado': 'GENERATED',
+      'Solicitado': 'REQUESTED_PAYMENT',
+      'Pagado': 'PAID',
+    };
+
+    const isAll = status_name.toLowerCase() === 'todos';
+
+    if (!isAll && !STATUS_MAP[status_name]) {
+      return res.status(400).json({
+        process: "error",
+        message: "El nombre del estado no es válido.", // Estados válidos: Todos, Generado, Solicitado, Pagado.
+      });
+    }
+
+    const baseQuery = `
+      SELECT btr.id AS bonus_transaction_id,
+        --CASE bon.apply_type
+          --WHEN 'FIRST_SALE' THEN 'Primera venta'
+          --WHEN 'EVERY_SALE' THEN 'Cada venta'
+          --WHEN 'ONCE' THEN 'Una venta por usuario'
+          --WHEN 'AFTER_N_SALES' THEN 'Hito/meta'
+        --END AS apply_type,
+        btr.amount AS bonus_amount,
+        '$' || REPLACE(
+          TO_CHAR(btr.amount, 'FM999,999,999,990'), ',', '.'
+        ) AS bonus_amount_formatted,
+        CASE btr.status
+          WHEN 'GENERATED' THEN 'Generado'
+          WHEN 'REQUESTED_PAYMENT' THEN 'Solicitado'
+          WHEN 'PAID' THEN 'Pagado'
+        END AS status,
+        TO_CHAR(btr.created_at, 'DD') || ' de ' ||
+        INITCAP(
+          CASE EXTRACT(MONTH FROM btr.created_at)
+            WHEN 1 THEN 'ene' WHEN 2 THEN 'feb' WHEN 3 THEN 'mar'
+            WHEN 4 THEN 'abr' WHEN 5 THEN 'may' WHEN 6 THEN 'jun'
+            WHEN 7 THEN 'jul' WHEN 8 THEN 'ago' WHEN 9 THEN 'sep'
+            WHEN 10 THEN 'oct' WHEN 11 THEN 'nov' WHEN 12 THEN 'dic'
+          END
+        ) || ' de ' || TO_CHAR(btr.created_at, 'YYYY hh12:mi am') AS generated_at,
+        TO_CHAR(btr.requested_at, 'DD') || ' de ' ||
+        INITCAP(
+          CASE EXTRACT(MONTH FROM btr.requested_at)
+            WHEN 1 THEN 'ene' WHEN 2 THEN 'feb' WHEN 3 THEN 'mar'
+            WHEN 4 THEN 'abr' WHEN 5 THEN 'may' WHEN 6 THEN 'jun'
+            WHEN 7 THEN 'jul' WHEN 8 THEN 'ago' WHEN 9 THEN 'sep'
+            WHEN 10 THEN 'oct' WHEN 11 THEN 'nov' WHEN 12 THEN 'dic'
+          END
+        ) || ' de ' || TO_CHAR(btr.requested_at, 'YYYY hh12:mi am') AS requested_at,
+        TO_CHAR(btr.paid_at, 'DD') || ' de ' ||
+        INITCAP(
+          CASE EXTRACT(MONTH FROM btr.paid_at)
+            WHEN 1 THEN 'ene' WHEN 2 THEN 'feb' WHEN 3 THEN 'mar'
+            WHEN 4 THEN 'abr' WHEN 5 THEN 'may' WHEN 6 THEN 'jun'
+            WHEN 7 THEN 'jul' WHEN 8 THEN 'ago' WHEN 9 THEN 'sep'
+            WHEN 10 THEN 'oct' WHEN 11 THEN 'nov' WHEN 12 THEN 'dic'
+          END
+        ) || ' de ' || TO_CHAR(btr.paid_at, 'YYYY hh12:mi am') AS paid_at
+      FROM bonus_transactions btr
+      LEFT JOIN users usr ON usr.id = btr.referral_user_id
+      LEFT JOIN bonuses bon ON bon.id = btr.bonus_id
+      WHERE usr.id = $1
+    `;
+
+    let query;
+    let params;
+
+    if (isAll) {
+      query = baseQuery + ` ORDER BY btr.created_at DESC`;
+      params = [user.id];
+    } else {
+      query = baseQuery + ` AND btr.status = $2 ORDER BY btr.created_at DESC`;
+      params = [user.id, STATUS_MAP[status_name]];
+    }
+
+    pool.query(query, params, (err, result) => {
+      if (err) {
+        console.log('err', err);
+        return res.status(500).json({
+          process: "error",
+          message: "Lo sentimos, no se pudo obtener el historial de bonos, inténtelo más tarde.",
+        });
+      }
+
+      let totalBonus = 0;
+      result.rows.forEach((bonus) => {
+        totalBonus += parseFloat(bonus.bonus_amount);
+      });
+      const totalBonusFormatted = new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+      }).format(Number(totalBonus));
+
+      return res.status(200).json({
+        process: "success",
+        message: "Historial de bonos obtenido exitosamente.",
+        data: {
+          total_bonus: totalBonusFormatted,
+          bonuses: result.rows,
+        },
+      });
+    });
+
+  } catch (err) {
+    console.log('err', err);
+    return res.status(500).json({
+      process: "error",
+      message: "Lo sentimos, no se pudo obtener el historial de bonos, inténtelo más tarde. (RC-AC-012).",
+    });
+  }
+}
+
+// RC-AC-HP-001
+export const referralAppliesForBonusV2 = async (referralUserID) => {
+  try {
+
+    // 1️⃣ Obtener bono activo
+    const bonusResult = await pool.query(`
+      SELECT *
+      FROM bonuses
+      WHERE is_active = TRUE
+      AND CURRENT_DATE BETWEEN valid_from AND valid_until
+      LIMIT 1
+    `);
+
+    if (bonusResult.rows.length === 0) {
+      return { process: "error", data: "No hay bono activo" };
+    }
+
+    const bonus = bonusResult.rows[0];
+
+    // 2️⃣ Contar ventas
+    const salesResult = await pool.query(
+      `SELECT COUNT(*) 
+       FROM referral_commissions 
+       WHERE referral_id = $1 
+       AND status IN ('AVAILABLE','PAID')`,
+      [referralUserID]
+    );
+
+    const salesCount = parseInt(salesResult.rows[0].count);
+
+    // 3️⃣ Validar si ya recibió bono
+    const bonusTxResult = await pool.query(
+      `SELECT COUNT(*) 
+       FROM bonus_transactions 
+       WHERE referral_user_id = $1 
+       AND bonus_id = $2`,
+      [referralUserID, bonus.id]
+    );
+
+    const alreadyReceived = parseInt(bonusTxResult.rows[0].count) > 0;
+
+    // console.log("RULE:", bonus.apply_type);
+    // console.log("SALES:", salesCount);
+    // console.log("BONUS RECEIVED:", alreadyReceived);
+
+    let applies = false;
+
+    // 4️⃣ Evaluar reglas
+    switch (bonus.apply_type) {
+
+      case "FIRST_SALE":
+        applies = salesCount === 1 && !alreadyReceived;
+        break;
+
+      case "EVERY_SALE":
+        applies = salesCount > 0;
+        break;
+
+      case "ONCE":
+        applies = !alreadyReceived;
+        break;
+
+      case "AFTER_N_SALES":
+        applies =
+          salesCount >= bonus.min_sales_required &&
+          !alreadyReceived;
+        break;
+
+      default:
+        return {
+          process: "error",
+          data: "Tipo de bono no soportado"
+        };
+    }
+
+    if (!applies) {
+      return {
+        process: "error",
+        data: "El usuario no cumple las condiciones del bono"
+      };
+    }
+
+    // 5️⃣ Obtener última comisión
+    const commissionResult = await pool.query(
+      `SELECT id
+       FROM referral_commissions
+       WHERE referral_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [referralUserID]
+    );
+
+    const commissionID = commissionResult.rows[0].id;
+
+    // 6️⃣ Insertar bono
+    return await insertBonusToReferalUser(
+      referralUserID,
+      bonus.id,
+      commissionID,
+      bonus.bonus_amount,
+      bonus.apply_type
+    );
+
+  } catch (error) {
+    console.log("ERROR referralAppliesForBonus:", error);
+
+    return {
+      process: "error",
+      data: "Error evaluando bono."
+    };
+  }
+};
+
+// RC-AC-HELPER-002
+const insertBonusToReferalUser = async (referralUserID, bonusID, commissionID, amount, ruleName) => {
+  try {
+    const insertBonusToReferalUser = await pool.query(
+      `INSERT INTO bonus_transactions (referral_user_id, bonus_id, referral_commission_id, amount)
+      VALUES(
+        $1, 
+        $2, 
+        $3, 
+        $4) RETURNING *`,
+      [referralUserID, bonusID, commissionID, amount]
+    )
+
+    if (insertBonusToReferalUser.rows.length === 0) {
+      console.log(`Regla ${ruleName} - No fue posible agregar bono al referido \n
+        referralUserID: ${referralUserID}\n
+        bonus_id: ${bonusID}\n
+        commission_id: ${commissionID}\n
+        amount: ${amount}\n
+        date: ${new Date()}\n
+      `);
+      return {
+        "process": "error",
+        "data": `Regla ${ruleName} - No fue posible agregar bono al referido. (RC-AC-HELPER-002).`
+      }
+    }
+
+    return {
+      "process": "success",
+      "data": "Bono agregado correctamente."
+    }
+  } catch (error) {
+    console.log("ERROR GLOBAL insertBonusToReferalUser: ", error);
+
+    return {
+      "process": "error",
+      "data": "Lo sentimos, no se pudo agregar el bono, inténtelo más tarde. (RC-AC-HELPER-002)."
+    }
+  }
+}
+
+
+
 
 

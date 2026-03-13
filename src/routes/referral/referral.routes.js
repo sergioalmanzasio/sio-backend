@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 
 import {
- createReferredExistCustomer, getReferredClients, getReferredClientsByToCoordinatorServices, getGeneralInformationOfReferralRequestService, calculateCommission, requestPaymentCommission, getCommissionAvailable, getTotalCommision, getCommissionsHistory
+ createReferredExistCustomer, getReferredClients, getReferredClientsByToCoordinatorServices, getGeneralInformationOfReferralRequestService, calculateCommission, requestPaymentCommission, getCommissionAvailable, getTotalCommision, getCommissionsHistory, getReferralBonusesGenerated, requestPaymentBonus, getBonusesHistory
 } from '../../controllers/referral/referral.controller.js';
 
 router.post('/create-referred-exist-customer', createReferredExistCustomer);
@@ -14,5 +14,8 @@ router.post('/request-payment-commission', requestPaymentCommission);
 router.get('/get-commission-available', getCommissionAvailable);
 router.get('/commissions/history/filter', getCommissionsHistory);
 router.get('/get-total-commision', getTotalCommision);
+router.get('/get-bonus-generated', getReferralBonusesGenerated);
+router.post('/request-payment-bonus', requestPaymentBonus);
+router.get('/bonuses/history/filter', getBonusesHistory);
 
 export default router;
