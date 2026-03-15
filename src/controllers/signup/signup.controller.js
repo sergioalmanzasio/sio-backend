@@ -225,7 +225,6 @@ export const signUpGenerateCode = async (req, res) => {
   }
 
   const code = generateVerificationCode();
-  const expiresAt = getExpirationDate();
 
   // Save code in database
   pool.query(
@@ -233,6 +232,7 @@ export const signUpGenerateCode = async (req, res) => {
     [email, code],
     async (err, result) => {
       if (err) {
+        console.log('Error al generar código.', err);
         return res
           .status(500)
           .json({
@@ -242,7 +242,8 @@ export const signUpGenerateCode = async (req, res) => {
       }
       // Send email with code to user for registration
       const sendEmailSignUpCode = await sendEmail(email, 'SIO - Código de verificación', code, name, email, 'user-registration');
-      // email, subject, code = '000000', personName, username = 'test@correo.com', flow = 'recovery-password'
+      console.log('Log tracking (signup.controller.js - signUpGenerateCode): ', sendEmailSignUpCode);
+
       if (!sendEmailSignUpCode) {
         return res.status(500).send({
           process: "error",
