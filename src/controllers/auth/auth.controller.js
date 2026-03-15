@@ -11,7 +11,6 @@ dotenv.config();
 
 // SignIn
 export const signIn = (req, res) => {
-  console.log('Log tracker: signIn (req.body): ', req.body);
   const { username, password } = req.body;
   if (!username || !password) {
     return res
@@ -104,7 +103,6 @@ export const signIn = (req, res) => {
 // Get data for the session
 export const getSessionData = (req, res) => {
   const token = req.cookies.token;
-  console.log('Log tracker: getSessionData (token): ', token);
   if (!token) { // No encontró token
     return res.status(401).json({ message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando." });
   }
