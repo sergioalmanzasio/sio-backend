@@ -40,29 +40,27 @@ export const createReferredExistCustomer = async (req, res) => {
       pool.query(
         "INSERT INTO referred_clients (user_id, person_id, code, created_by, updated_by) VALUES ($1, $2, SUBSTRING(gen_random_uuid()::text FROM 1 FOR 6), $3, $4) RETURNING *",
         [userExist.id, personExist.id, userExist.id, userExist.id],
-        (err, result) => {
+        async (err, result) => {
           if (err) {
             // RC-001: Error al crear cliente referido
             return res.status(500).json({ process: "error", message: "Lo sentimos, no se pudo crear el cliente referido (RC-001)." });
           }
 
+
+          const coordinatorService = await pool.query(
+            `SELECT ur.user_id FROM user_roles ur 
+            WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'service coordinator') 
+            ORDER BY RANDOM() LIMIT 1`
+          );
+
+          console.log('coordinatorService: ', coordinatorService.rows);
+
           pool.query(
             `INSERT INTO assigned_referrals (referred_client_id, referred_client_code, MKT_user_id, created_by) 
-            VALUES (
-              $1,
-              $2,
-              ( 
-                SELECT ur.user_id FROM user_roles ur 
-                WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'service coordinator') 
-                ORDER BY RANDOM() LIMIT 1
-              ),
-              $4
-            )`,
-            [
-              result.rows[0].id,
-              result.rows[0].code,
-              userExist.id
-            ],
+            VALUES ($1,$2,$3,$4)`,
+            [result.rows[0].id, result.rows[0].code,
+            coordinatorService.rows.length === 0 ? transversalUUID() : coordinatorService.rows[0].user_id,
+            userExist.id],
             (err, result) => {
               if (err) {
                 // AR-001: Error al crear cliente referido
