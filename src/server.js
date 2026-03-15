@@ -49,6 +49,25 @@ app.use((err, req, res, next) => {
  res.status(500).send('¡Algo salió mal en el servidor!');
 })
 
+const allowedOrigins = [
+ 'https://tu-frontend.com',
+ 'http://localhost:3000',   // o el puerto que uses
+ 'http://localhost:5173',   // si usas Vite
+ 'http://localhost:4200',   // si usas Angular
+];
+
+app.use(cors({
+ origin: (origin, callback) => {
+  if (!origin || allowedOrigins.includes(origin)) {
+   callback(null, true);
+  } else {
+   callback(new Error('No permitido por CORS'));
+  }
+ },
+ credentials: true,        // ⚠️ CRÍTICO si usas cookies
+ methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+ allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 const PORT = process.env.PORT || 4001;
 
