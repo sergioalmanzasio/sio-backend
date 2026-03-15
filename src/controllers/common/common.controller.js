@@ -368,11 +368,11 @@ export const getDocumentTypeIdByAcronym = (acronym) => {
       [acronym],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar tipo de documento." });
+          return resolve({ process: "error", message: "Error al consultar tipo de documento." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Tipo de documento no encontrado." });
+          return resolve({ process: "error", message: "Tipo de documento no encontrado." });
         }
         return resolve({
           message: "Tipo de documento encontrado.",
