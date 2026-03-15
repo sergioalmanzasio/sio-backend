@@ -51,13 +51,16 @@ export const createReferredExistCustomer = async (req, res) => {
             VALUES (
               $1,
               $2,
-              (  SELECT ur.user_id FROM user_roles ur WHERE ur.role_id = $3 ORDER BY RANDOM() LIMIT 1 ),
+              ( 
+                SELECT ur.user_id FROM user_roles ur 
+                WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'service coordinator') 
+                ORDER BY RANDOM() LIMIT 1
+              ),
               $4
             )`,
             [
               result.rows[0].id,
               result.rows[0].code,
-              'b1345452-a506-473c-a6ec-eb9ae932e483',
               userExist.id
             ],
             (err, result) => {
