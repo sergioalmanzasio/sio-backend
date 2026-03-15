@@ -571,6 +571,42 @@ export const getCommissionAvailable = async (req, res) => {
     }
 
     try {
+
+      const validateHasReferredClients = await pool.query(
+        `SELECT * FROM referred_clients WHERE user_id = $1`,
+        [decoded.id]
+      );
+
+      if (validateHasReferredClients.rows.length === 0) {
+        return res.status(404).json({
+          process: "info",
+          message: "No tienes comisiones disponibles, no cuentas con clientes referidos.",
+          data: {
+            total_commission: 0,
+            commissions: [],
+          },
+        });
+      }
+
+      const validateHasServiceRequestActive = await pool.query(
+        `SELECT * 
+          FROM referred_clients rfc 
+          LEFT JOIN referral_service_requests rsr ON rsr.assigned_referral_code = rfc.code
+          WHERE rfc.user_id = $1`,
+        [decoded.id]
+      );
+
+      if (validateHasServiceRequestActive.rows.length === 0) {
+        return res.status(404).json({
+          process: "info",
+          message: "No tienes comisiones disponibles, no se han encontrado solicitudes de servicios.",
+          data: {
+            total_commission: 0,
+            commissions: [],
+          },
+        });
+      }
+
       const result = await pool.query(
         `SELECT rco.commission_amount, 
           '$ ' || REPLACE(
@@ -1011,7 +1047,6 @@ export const getReferralBonusesGenerated = async (req, res) => {
     }
 
     const referralUserID = validateUser.id;
-    console.log(">>> referralUserID", referralUserID);
 
     const result = await pool.query(
       `SELECT btr.id AS bonus_transaction_id, 
