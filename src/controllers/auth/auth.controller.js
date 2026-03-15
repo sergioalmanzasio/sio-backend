@@ -44,8 +44,8 @@ export const signIn = (req, res) => {
       const token = generateToken(user.id);
       res.cookie("token", token, {
         httpOnly: true,
-        // secure: process.env.NODE_ENV === "production", // En prod SOLO con https
-        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production", // En prod SOLO con https
+        sameSite: "none", // 👈 strict: para seguridad
         maxAge: 60 * 60 * 1000, // 1 hora
       });
 
