@@ -4,9 +4,9 @@ import authConfig from "../../config/auth.config.js";
 import { comparePassword } from "../../utils/password.js";
 import { generateToken } from "../../utils/shared.js";
 import dotenv from "dotenv";
-import { sendNotification } from "../../services/notification.service.js";
-import { NotificationChannels } from "../../modules/notifications/notification.types.js";
-import { verifyOTP } from "../../modules/notifications/providers/otp.provider.js";
+// import { sendNotification } from "../../services/notification.service.js";
+// import { NotificationChannels } from "../../modules/notifications/notification.types.js";
+// import { verifyOTP } from "../../modules/notifications/providers/otp.provider.js";
 dotenv.config();
 
 // SignIn
