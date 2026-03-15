@@ -4,6 +4,9 @@ import authConfig from "../../config/auth.config.js";
 import { comparePassword } from "../../utils/password.js";
 import { generateToken } from "../../utils/shared.js";
 import dotenv from "dotenv";
+import { sendNotification } from "../../services/notification.service.js";
+import { NotificationChannels } from "../../modules/notifications/notification.types.js";
+import { verifyOTP } from "../../modules/notifications/providers/otp.provider.js";
 dotenv.config();
 
 // SignIn
@@ -45,9 +48,53 @@ export const signIn = (req, res) => {
         maxAge: 60 * 60 * 1000, // 1 hora
       });
 
-      res.json({ 
+      // SEND sms
+      // const smsResult = await sendNotification({
+      //   channel: NotificationChannels.SMS,
+      //   to: "+573007858634",
+      //   subject: "Hola Ricardo, este es un mensaje de prueba del sistema SIO.",
+      //   message: `SIO|Colombia, tu sesión ha sido iniciada exitosamente.`,
+      //   metadata: {
+      //     userId: user.id,
+      //     type: "login",
+      //   },
+      // });
+      // console.log("SMS Result:", smsResult);
+
+      // SEND whatsapp
+      // const whatsappResult = await sendNotification({
+      //   channel: NotificationChannels.WHATSAPP,
+      //   to: "+573007858634",
+      //   subject: "Hola Ricardo, este es un mensaje de prueba del sistema SIO.",
+      //   message: `Tu sesión ha sido iniciada exitosamente.`,
+      //   metadata: {
+      //     userId: user.id,
+      //     type: "login",
+      //   },
+      // });
+      // console.log("WhatsApp Result:", whatsappResult);
+
+      // SEND OTP
+      // const otpResult = await sendNotification({
+      //   channel: NotificationChannels.OTP,
+      //   to: "+573007858634",
+      //   metadata: {
+      //     userId: user.id,
+      //     type: "login",
+      //   },
+      // });
+      // console.log("OTP Result:", otpResult);
+
+      // VERIFY OTP
+      // const verifyOtpResult = await verifyOTP({
+      //   to: "+573007858634",
+      //   code: "235012",
+      // });
+      // console.log("Verify OTP Result:", verifyOtpResult);
+
+      res.json({
         process: "success",
-        message: "Inicio de sesión exitoso." 
+        message: "Inicio de sesión exitoso."
       });
     }
   );
@@ -56,6 +103,7 @@ export const signIn = (req, res) => {
 // Get data for the session
 export const getSessionData = (req, res) => {
   const token = req.cookies.token;
+  console.log('Log tracker: getSessionData (token): ', token);
   if (!token) { // No encontró token
     return res.status(401).json({ message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando." });
   }
