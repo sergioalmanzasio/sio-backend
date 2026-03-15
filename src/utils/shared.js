@@ -5,9 +5,13 @@ import fs from "fs";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { fileURLToPath } from 'url';
+import { Resend } from 'resend';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Generate token
 export const generateToken = (user_id) => {
@@ -83,36 +87,45 @@ export const sendEmail = async (email, subject, code = '000000', personName, use
 
   }
 
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: subject,
-    // text: text,
-    html: htmlTemplate,
-    attachments: [
-      {
-        filename: 'SIO-logo.jpg',
-        path: path.join(__dirname, 'email-templates', './image/SIO-logo.png'),
-        cid: 'logo-web-app' // Debe coincidir con el src="cid:..."
-      }
-    ]
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
-    return true;
+    const logoPath = path.join(__dirname, 'email-templates', './image/SIO-logo.png');
+    const logoBase64 = fs.readFileSync(logoPath).toString('base64');
+    const result = await resend.emails.send({
+      from: 'SIO App <no-reply@siocolombia.com>',
+      to: email,
+      subject: subject,
+      html: htmlTemplate,
+      attachments: [
+        {
+          filename: 'SIO-logo.png',
+          content: logoBase64,         // base64 string
+          content_type: 'image/png',
+          content_id: 'logo-web-app',  // equivalente al cid
+          inline: true,
+        },
+      ],
+    });
+
+    if (result.error) {
+      console.error(`[sendEmail] flow=${flow} email=${email} Resend error:`, result.error);
+      return false;
+    }
+    return !!result.data?.id;
   } catch (error) {
-    console.error('Error al enviar correo (process: ' + process + '), email: ' + email + ':', error);
+    console.error(`[sendEmail] flow=${flow} email=${email}`, error.message);
     return false;
   }
+
+  // try {
+  //   let sendToEmail = await transporter.sendMail(mailOptions);
+  //   if (sendToEmail.response) {
+  //     return true;
+  //   }
+  //   return false;
+  // } catch (error) {
+  //   console.error('Error al enviar correo (process: ' + process + '), email: ' + email + ':', error);
+  //   return false;
+  // }
 
 };
 
