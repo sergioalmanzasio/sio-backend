@@ -11,6 +11,7 @@ dotenv.config();
 
 // SignIn
 export const signIn = (req, res) => {
+  console.log('Log tracker: signIn (req.body): ', req.body);
   const { username, password } = req.body;
   if (!username || !password) {
     return res
@@ -43,7 +44,7 @@ export const signIn = (req, res) => {
       const token = generateToken(user.id);
       res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // En prod SOLO con https
+        // secure: process.env.NODE_ENV === "production", // En prod SOLO con https
         sameSite: "strict",
         maxAge: 60 * 60 * 1000, // 1 hora
       });
