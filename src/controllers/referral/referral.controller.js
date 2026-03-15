@@ -53,8 +53,6 @@ export const createReferredExistCustomer = async (req, res) => {
             ORDER BY RANDOM() LIMIT 1`
           );
 
-          console.log('coordinatorService: ', coordinatorService.rows);
-
           pool.query(
             `INSERT INTO assigned_referrals (referred_client_id, referred_client_code, MKT_user_id, created_by) 
             VALUES ($1,$2,$3,$4)`,
