@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-// import dotenv from 'dotenv';
 import cookieParser from "cookie-parser";
 import pool from './config/db.config.js';
 import routes from './routes/index.js';
@@ -8,6 +7,30 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
+
+//*** CORS CONFIGURATION
+const allowedOrigins = [
+ 'http://localhost:3000',   // o el puerto que uses
+ 'http://localhost:5173',   // si usas Vite
+ 'http://localhost:4200',   // si usas Angular
+ 'https://sio-mvp.vercel.app'
+];
+
+app.use(cors({
+ origin: (origin, callback) => {
+  if (!origin || allowedOrigins.includes(origin)) {
+   callback(null, true);
+  } else {
+   callback(new Error('No permitido por CORS'));
+  }
+ },
+ credentials: true,        // ⚠️ CRÍTICO si usas cookies
+ methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+ allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// permitir preflight
+app.options('*', cors());
 
 // Middleware
 app.use(express.json());
@@ -45,26 +68,7 @@ app.use((err, req, res, next) => {
  res.status(500).send('¡Algo salió mal en el servidor!');
 })
 
-const allowedOrigins = [
- 'https://tu-frontend.com',
- 'http://localhost:3000',   // o el puerto que uses
- 'http://localhost:5173',   // si usas Vite
- 'http://localhost:4200',   // si usas Angular
- 'https://sio-mvp.vercel.app'
-];
 
-app.use(cors({
- origin: (origin, callback) => {
-  if (!origin || allowedOrigins.includes(origin)) {
-   callback(null, true);
-  } else {
-   callback(new Error('No permitido por CORS'));
-  }
- },
- credentials: true,        // ⚠️ CRÍTICO si usas cookies
- methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
- allowedHeaders: ['Content-Type', 'Authorization'],
-}));
 
 const PORT = process.env.PORT || 4001;
 
