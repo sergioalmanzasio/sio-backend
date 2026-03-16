@@ -121,7 +121,7 @@ export const createPerson = async (req, res) => {
           pool.query(
             `INSERT INTO referred_clients (user_id, person_id, code, created_by, updated_by) VALUES ($1, $2, SUBSTRING(gen_random_uuid()::text FROM 1 FOR 6), $3, $4) RETURNING *`,
             [userIDByReferralSystemSIO.id, resultAddPerson.rows[0].id, userIDByReferralSystemSIO.id, userIDByReferralSystemSIO.id],
-            (err, resultAddReferredClient) => {
+            async (err, resultAddReferredClient) => {
               if (err) {
                 // RC-001: Error al crear cliente referido
                 console.log(`
@@ -134,18 +134,24 @@ export const createPerson = async (req, res) => {
                 `);
               }
 
+              const coordinatorService = await pool.query(
+                `SELECT ur.user_id FROM user_roles ur 
+                WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'service coordinator') 
+                ORDER BY RANDOM() LIMIT 1`
+              );
+
               pool.query(
                 `INSERT INTO assigned_referrals (referred_client_id, referred_client_code, MKT_user_id, created_by) 
                 VALUES (
                   $1,
                   $2,
-                  (  SELECT ur.user_id FROM user_roles ur WHERE ur.role_id = $3 ORDER BY RANDOM() LIMIT 1 ),
+                  $3,
                   $4
                 )`,
                 [
                   resultAddReferredClient.rows[0].id,
                   resultAddReferredClient.rows[0].code,
-                  'b1345452-a506-473c-a6ec-eb9ae932e483',
+                  coordinatorService.rows.length === 0 ? transversalUUID() : coordinatorService.rows[0].user_id,
                   userIDByReferralSystemSIO.id
                 ],
                 (err, resultAssignedReferral) => {
@@ -282,7 +288,7 @@ export const getPersonByEmail = async (req, res) => {
             let dataBank = {};
             const userDataBank = await getUserDataBankByUserId(userID.id);
             if (userDataBank.process === "error") {
-              console.log('Error al obtener datos bancarios (PC-AC-003).', userDataBank);
+              console.log('Error al obtener datos bancarios (PC-AC-003). Correo: ', email, ' Datos: ', userDataBank);
               // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
             } else {
               dataBank = userDataBank.data;
