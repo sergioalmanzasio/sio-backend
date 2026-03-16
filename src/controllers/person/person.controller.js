@@ -77,9 +77,11 @@ export const createPerson = async (req, res) => {
     department, city, neighborhood, address, type_of_housing,
     observations } = req.body;
 
-  if (!document || !document_type_acronym || !name || !last_name || !email || !phone || !department || !city || !neighborhood || !address || !type_of_housing || !observations) {
+  if (!document || !document_type_acronym || !name || !last_name || !email || !phone || !department || !city || !neighborhood || !address || !type_of_housing) {
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
+
+  observations = observations || 'Sin observaciones';
 
   const documentType = await getDocumentTypeIdByAcronym(document_type_acronym);
   if (documentType.process === "error") {
