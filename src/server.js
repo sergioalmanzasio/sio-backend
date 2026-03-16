@@ -54,6 +54,7 @@ const allowedOrigins = [
  'http://localhost:3000',   // o el puerto que uses
  'http://localhost:5173',   // si usas Vite
  'http://localhost:4200',   // si usas Angular
+ 'https://sio-mvp.vercel.app'
 ];
 
 app.use(cors({
