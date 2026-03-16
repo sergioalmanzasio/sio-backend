@@ -10,10 +10,6 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors({
- origin: "http://localhost:5173", // 👈 tu frontend
- credentials: true, // 👈 necesario para cookies
-}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
