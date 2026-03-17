@@ -11,42 +11,55 @@ dotenv.config();
 
 // SignIn
 export const signIn = (req, res) => {
+  console.log("SignIn.Track: req.body", req.body);
   const { username, password } = req.body;
+  console.log("SignIn.Track: username", username);
+  console.log("SignIn.Track: password", password);
   if (!username || !password) {
+    console.log("SignIn.Track: No username or password");
     return res
       .status(400)
       .json({ message: "Usuario y contraseña son obligatorios." });
   }
+
   pool.query(
     "SELECT * FROM users WHERE username = $1",
     [username],
     async (err, result) => {
       if (err) {
+        console.log("SignIn.Track: Error al consultar usuario");
         return res.status(500).json({ message: "Error al consultar usuario." });
       }
       if (result.rows.length === 0) {
+        console.log("SignIn.Track: Usuario no encontrado");
         return res
           .status(401)
           .json({ message: "Usuario o contraseña invalidos." });
       }
       const user = result.rows[0];
       if (!user.is_active) {
+        console.log("SignIn.Track: Usuario no activo");
         return res.status(401).json({ message: "Usuario no activo." });
       }
 
       const isPasswordValid = await comparePassword(password, user.password);
       if (!isPasswordValid) {
+        console.log("SignIn.Track: Contraseña invalida");
         return res
           .status(401)
           .json({ message: "Usuario o contraseña invalidos." });
       }
       const token = generateToken(user.id);
+      console.log("SignIn.Track: token", token);
+      console.log("SignIn.Track: process.env.NODE_ENV", process.env.NODE_ENV);
       res.cookie("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", // En prod SOLO con https
-        sameSite: "none", // 👈 strict: para seguridad
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict", // 👈 strict: para seguridad
         maxAge: 60 * 60 * 1000, // 1 hora
       });
+      console.log("SignIn.Track: Token cookie set");
+      console.log("SignIn.Track: res.cookie", res.cookie);
 
       // SEND sms
       // const smsResult = await sendNotification({
