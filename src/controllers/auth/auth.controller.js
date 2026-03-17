@@ -107,7 +107,8 @@ export const signIn = (req, res) => {
 
       res.json({
         process: "success",
-        message: "Inicio de sesión exitoso."
+        message: "Inicio de sesión exitoso.",
+        token: token
       });
     }
   );
@@ -116,7 +117,10 @@ export const signIn = (req, res) => {
 // Get data for the session
 export const getSessionData = (req, res) => {
   console.log("GetSessionData.Track: req.cookies", req.cookies.token);
-  const token = req.cookies.token;
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+  console.log("GetSessionData.Track: token headers.authorization: ", token);
+  // const token = req.cookies.token;
   if (!token) { // No encontró token
     console.log("GetSessionData.Track: No token");
     return res.status(401).json({ message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando." });
