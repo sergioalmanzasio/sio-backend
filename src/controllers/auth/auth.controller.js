@@ -3,7 +3,9 @@ import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
 import { comparePassword } from "../../utils/password.js";
 import { generateToken } from "../../utils/shared.js";
+import { getTokenByReq } from "../common/common.controller.js";
 import dotenv from "dotenv";
+import { token } from "morgan";
 // import { sendNotification } from "../../services/notification.service.js";
 // import { NotificationChannels } from "../../modules/notifications/notification.types.js";
 // import { verifyOTP } from "../../modules/notifications/providers/otp.provider.js";
@@ -54,8 +56,8 @@ export const signIn = (req, res) => {
       console.log("SignIn.Track: process.env.NODE_ENV", process.env.NODE_ENV);
       res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // En prod SOLO con https
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict", // 👈 strict: para seguridad
+        secure: true, //process.env.NODE_ENV === "production", // En prod SOLO con https
+        sameSite: "none", //process.env.NODE_ENV === "production" ? "none" : "strict", // 👈 strict: para seguridad
         maxAge: 60 * 60 * 1000, // 1 hora
       });
       console.log("SignIn.Track: Token cookie set");
@@ -116,10 +118,26 @@ export const signIn = (req, res) => {
 
 // Get data for the session
 export const getSessionData = (req, res) => {
-  console.log("GetSessionData.Track: req.cookies", req.cookies.token);
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.split(" ")[1];
-  console.log("GetSessionData.Track: token headers.authorization: ", token);
+
+  console.log("---------------SESSION DATA LOG TRACK-----------------");
+  console.log("GetSessionData.Track: req", req);
+  console.log("--------------------------------");
+  console.log("GetSessionData.Track: req.cookies", req.cookies);
+  console.log("--------------------------------");
+  console.log("GetSessionData.Track: req.cookies.token", req.cookies.token);
+  console.log("--------------------------------");
+  console.log("GetSessionData.Track: req.user", req.user);
+  console.log("--------------------------------");
+  console.log("---------------SESSION DATA LOG TRACK-----------------");
+  // const tokenData = getTokenByReq(req);
+  // if (tokenData.process !== "success") {
+  //   return res.status(401).json({
+  //     process: tokenData.process,
+  //     message: tokenData.message
+  //   });
+  // }
+  // const token = tokenData.token;
+
   // const token = req.cookies.token;
   if (!token) { // No encontró token
     console.log("GetSessionData.Track: No token");
