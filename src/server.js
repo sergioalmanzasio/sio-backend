@@ -9,7 +9,6 @@ dotenv.config();
 const app = express();
 
 app.set("trust proxy", 1);
-console.log("...Add trust proxy");
 
 //*** CORS CONFIGURATION
 const allowedOrigins = [
@@ -20,14 +19,13 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
- // origin: (origin, callback) => {
- //  if (!origin || allowedOrigins.includes(origin)) {
- //   callback(null, true);
- //  } else {
- //   callback(new Error('No permitido por CORS'));
- //  }
- // },
- origin: 'https://sio-mvp.vercel.app',
+ origin: (origin, callback) => {
+  if (!origin || allowedOrigins.includes(origin)) {
+   callback(null, true);
+  } else {
+   callback(new Error('No permitido por CORS'));
+  }
+ },
  credentials: true,        // ⚠️ CRÍTICO si usas cookies
  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
  allowedHeaders: ['Content-Type', 'Authorization'],
