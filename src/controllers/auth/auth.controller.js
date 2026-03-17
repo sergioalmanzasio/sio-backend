@@ -3,7 +3,7 @@ import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
 import { comparePassword } from "../../utils/password.js";
 import { generateToken } from "../../utils/shared.js";
-import { getTokenByReq } from "../common/common.controller.js";
+// import { getTokenByReq } from "../common/common.controller.js";
 import dotenv from "dotenv";
 import { token } from "morgan";
 // import { sendNotification } from "../../services/notification.service.js";
