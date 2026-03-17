@@ -8,6 +8,9 @@ dotenv.config();
 
 const app = express();
 
+app.set("trust proxy", 1);
+console.log("...Add trust proxy");
+
 //*** CORS CONFIGURATION
 const allowedOrigins = [
  'http://localhost:3000',   // o el puerto que uses
@@ -39,6 +42,8 @@ app.use(cookieParser());
 app.get('/', (req, res) => {
  res.json({ message: 'Bienvenido al backend de fp-003!!' });
 });
+
+
 
 //*** ROUTES
 app.use('/api/auth', routes.authRoutes);
