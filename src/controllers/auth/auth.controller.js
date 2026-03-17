@@ -115,12 +115,15 @@ export const signIn = (req, res) => {
 
 // Get data for the session
 export const getSessionData = (req, res) => {
+  console.log("GetSessionData.Track: req.cookies", req.cookies.token);
   const token = req.cookies.token;
   if (!token) { // No encontró token
+    console.log("GetSessionData.Track: No token");
     return res.status(401).json({ message: "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando." });
   }
   jwt.verify(token, authConfig.secret, (err, decoded) => {
     if (err) { // Token inválido
+      console.log("GetSessionData.Track: Invalid token");
       return res.status(401).json({ message: "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad." });
     }
     // Consultar person by user_id
@@ -129,9 +132,11 @@ export const getSessionData = (req, res) => {
       [decoded.id],
       (err, result) => {
         if (err) {
+          console.log("GetSessionData.Track: Error al consultar persona");
           return res.status(500).json({ message: "Error al consultar datos de la persona." });
         }
         if (result.rows.length === 0) {
+          console.log("GetSessionData.Track: Persona no encontrada");
           return res.status(401).json({ message: "Persona no encontrada." });
         }
         const person = result.rows[0];
@@ -142,12 +147,15 @@ export const getSessionData = (req, res) => {
           [decoded.id],
           (err, result) => {
             if (err) {
+              console.log("GetSessionData.Track: Error al consultar rol");
               return res.status(500).json({ message: "Error al consultar datos del rol asociado al usuario." });
             }
             if (result.rows.length === 0) {
+              console.log("GetSessionData.Track: Rol no encontrado");
               return res.status(401).json({ message: "Rol asociado al usuario no encontrado." });
             }
             const roles = result.rows;
+            console.log("GetSessionData.Track: Roles", roles);
 
             res.json({
               process: "success",
