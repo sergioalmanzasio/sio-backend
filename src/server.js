@@ -17,13 +17,14 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
- origin: (origin, callback) => {
-  if (!origin || allowedOrigins.includes(origin)) {
-   callback(null, true);
-  } else {
-   callback(new Error('No permitido por CORS'));
-  }
- },
+ // origin: (origin, callback) => {
+ //  if (!origin || allowedOrigins.includes(origin)) {
+ //   callback(null, true);
+ //  } else {
+ //   callback(new Error('No permitido por CORS'));
+ //  }
+ // },
+ origin: 'https://sio-mvp.vercel.app',
  credentials: true,        // ⚠️ CRÍTICO si usas cookies
  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
  allowedHeaders: ['Content-Type', 'Authorization'],
