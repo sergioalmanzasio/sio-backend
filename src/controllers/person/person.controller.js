@@ -81,10 +81,6 @@ export const createPerson = async (req, res) => {
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
 
-  observations = observations === '' || observations === null || observations === undefined
-    ? 'Sin observaciones'
-    : observations;
-
   const documentType = await getDocumentTypeIdByAcronym(document_type_acronym);
   if (documentType.process === "error") {
     // TD-001: Error con obtención de ID de Tipo documento
