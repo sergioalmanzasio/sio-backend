@@ -1,5 +1,6 @@
 import pool from "../../config/db.config.js";
 import { userWithPermissions } from "../common/common.controller.js";
+import { logger } from "../../utils/logger.js";
 
 export const addBenefitsToOffer = async (offer_id, benefit_ids, userId) => {
   try {
@@ -27,7 +28,7 @@ export const addBenefitsToOffer = async (offer_id, benefit_ids, userId) => {
 };
 
 export const createOffer = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
 
   if (validateUserWithPermissions.process !== "success") {
@@ -37,7 +38,7 @@ export const createOffer = async (req, res) => {
     });
   }
 
-  const { name, description, price, is_range, date_start, date_end, operator_name, category_name, benefits } = req.body;
+  const { name, description, price, is_range, date_start, date_end, operator_name, category_name, commission_type, commission_value, benefits } = req.body;
 
   try {
     const operatorResult = await pool.query("SELECT id FROM operators WHERE name = $1 AND is_active = true", [operator_name]);
@@ -82,6 +83,24 @@ export const createOffer = async (req, res) => {
       });
     }
 
+    let auxCommissionType = '';
+    if (commission_type === 'Valor fijo') {
+      auxCommissionType = 'FIXED';
+    } else {
+      auxCommissionType = 'PERCENTAGE';
+    }
+    const offerCommissionConfig = await pool.query(
+      "INSERT INTO offer_commission_config (offer_id, commission_type, commission_value, created_by) VALUES ($1, $2, $3, $4) RETURNING *",
+      [offerResult.rows[0].id, auxCommissionType, commission_value, validateUserWithPermissions.id]
+    );
+
+    if (offerCommissionConfig.rows.length === 0) {
+      return res.status(201).json({
+        process: "info",
+        message: "La oferta fue registrada, pero no se puedo configurar la comisión, comunicate con el AdminSys.",
+      });
+    }
+
     return res.status(201).json({
       process: "success",
       message: "Oferta creada exitosamente.",
@@ -94,7 +113,7 @@ export const createOffer = async (req, res) => {
 };
 
 export const getOffers = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
   if (validateUserWithPermissions.process !== "success") {
     return res.status(401).json({
@@ -140,7 +159,7 @@ export const getOffers = async (req, res) => {
 };
 
 export const getOfferById = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
 
   if (validateUserWithPermissions.process !== "success") {
@@ -185,7 +204,7 @@ export const getOfferById = async (req, res) => {
 };
 
 export const updateOffer = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
   if (validateUserWithPermissions.process !== "success") {
     return res.status(401).json({
@@ -272,7 +291,7 @@ export const updateOffer = async (req, res) => {
           );
         } else if (!exists.rows[0].is_active) {
           await pool.query(
-            "UPDATE offers_benefits SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP, updated_by = $1 WHERE id = $2", 
+            "UPDATE offers_benefits SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP, updated_by = $1 WHERE id = $2",
             [validateUserWithPermissions.id, exists.rows[0].id]
           );
         }
@@ -300,7 +319,7 @@ export const updateOffer = async (req, res) => {
 };
 
 export const addBenefitsToOfferEndpoint = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
 
   if (validateUserWithPermissions.process !== "success") {
@@ -335,7 +354,7 @@ export const addBenefitsToOfferEndpoint = async (req, res) => {
 
 // GET ALL BENEFITS
 export const getAllBenefits = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
 
   if (validateUserWithPermissions.process !== "success") {
@@ -359,7 +378,7 @@ export const getAllBenefits = async (req, res) => {
 
 // GET ALL CATEGORIES
 export const getAllCategories = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   const validateUserWithPermissions = await userWithPermissions(token);
 
   if (validateUserWithPermissions.process !== "success") {
@@ -379,4 +398,115 @@ export const getAllCategories = async (req, res) => {
     console.error("Error getting categories:", error);
     return res.status(500).json({ message: "Error interno del servidor al consultar categorías." });
   }
+};
+
+// GET CONFIG COMMISSION BY OFFER ID
+export const getOfferCommissionConfig = async (req, res) => {
+  const { offer_id } = req.body;
+  const token = req.token;
+  const validateUserWithPermissions = await userWithPermissions(token);
+
+  if (validateUserWithPermissions.process !== "success") {
+    return res.status(401).json({
+      process: validateUserWithPermissions.process,
+      message: validateUserWithPermissions.message
+    });
+  }
+  pool.query(
+    `SELECT  occ.id AS offer_commission_config_id,
+        CASE occ.commission_type 
+          WHEN 'PERCENTAGE' then 'Porcentaje'
+          ELSE 'Valor fijo'
+          END AS commission_type,
+        occ.commission_value,
+        CASE 
+          WHEN occ.commission_type = 'PERCENTAGE' THEN 
+          	TO_CHAR(occ.commission_value, 'FM999G999G990') || '%'	
+          WHEN occ.commission_type = 'FIXED' THEN 
+            '$' || REPLACE(TO_CHAR(occ.commission_value, 'FM999,999,999,990'),',', '.')
+        END AS commission_value_formated,
+        occ.is_active
+    FROM offer_commission_config occ 
+    WHERE offer_id = $1`,
+    [offer_id],
+    (err, result) => {
+      if (err) {
+        logger.error("OfferController.getOfferCommissionConfig error:", err, {
+          offer_id: offer_id,
+          user_id: validateUserWithPermissions.id,
+        });
+        return res
+          .status(500)
+          .json({
+            process: "info",
+            message: "Error al consultar la configuración de la oferta.",
+          });
+      }
+      res.json({
+        process: "success",
+        message: "Configuración de la oferta obtenida exitosamente.",
+        count: result.rowCount,
+        data: result.rows,
+      });
+    }
+  );
+};
+
+// UPDATE CONFIG COMMISSION BY OFFER ID
+export const updateOfferCommissionConfig = async (req, res) => {
+  const { offer_commission_config_id, commission_type, commission_value, is_active, offer_id } = req.body;
+  const token = req.token;
+  const validateUserWithPermissions = await userWithPermissions(token);
+
+  if (validateUserWithPermissions.process !== "success") {
+    return res.status(401).json({
+      process: validateUserWithPermissions.process,
+      message: validateUserWithPermissions.message
+    });
+  }
+
+  const resultInitialConfig = await pool.query("SELECT * FROM offer_commission_config WHERE id = $1", [offer_commission_config_id]);
+  if (resultInitialConfig.rows.length === 0) {
+    return res.status(404).json({
+      process: "info",
+      message: "No se encontro la configuración de la oferta."
+    });
+  }
+
+  const initialStatus = resultInitialConfig.rows[0].is_active;
+  if (initialStatus === true && is_active === false) {
+    const resultUpdateOffer = await pool.query("UPDATE offers SET is_active = false WHERE id = $1 returning *", [offer_id]);
+    if (resultUpdateOffer.rows.length === 0) {
+      return res.status(404).json({
+        process: "info",
+        message: "Lo sentimos, no fue posible realizar la actualización de la configuración de la oferta."
+      });
+    }
+  }
+
+  pool.query(
+    `UPDATE offer_commission_config 
+    SET commission_type = $1, commission_value = $2, is_active = $3, updated_at = CURRENT_TIMESTAMP, updated_by = $4
+    WHERE id = $5 returning *`,
+    [commission_type, commission_value, is_active, validateUserWithPermissions.id, offer_commission_config_id],
+    async (err, result) => {
+      if (err) {
+        logger.error("OfferController.updateOfferCommissionConfig error:", err, {
+          offer_commission_config_id: offer_commission_config_id,
+          user_id: validateUserWithPermissions.id,
+        });
+        return res
+          .status(500)
+          .json({
+            process: "info",
+            message: "Error al actualizar la configuración de la oferta.",
+          });
+      }
+
+      res.json({
+        process: "success",
+        message: "Configuración de la oferta actualizada exitosamente.",
+      });
+    }
+  );
 };
