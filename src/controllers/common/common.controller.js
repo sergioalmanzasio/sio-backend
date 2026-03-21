@@ -194,7 +194,6 @@ export const getRoleIdByAdminName = async (res) => {
 }
 
 export const getUserIDByReferralSystemSIO = async (res) => {
-  console.log('process.env.EMAILS_SIO_REFERAL', process.env.EMAILS_SIO_REFERAL);
   return new Promise((resolve, reject) => {
     pool.query(
       "SELECT * FROM users WHERE username = $1",
@@ -336,6 +335,70 @@ export const validateUserIsActive = (token) => {
   })
 }
 
+export const validateUserIsActiveByID = (userId) => {
+  return new Promise((resolve, reject) => {
+    if (!userId) {
+      return resolve({
+        process: "info",
+        message: "Usuario no encontrado."
+      });
+    }
+
+    pool.query(
+      "SELECT * FROM users WHERE id = $1 AND is_active = TRUE",
+      [userId],
+      (err, result) => {
+        if (err) {
+          return resolve({
+            process: "info",
+            message: "Error al consultar usuario."
+          });
+        }
+
+        if (result.rows.length === 0) {
+          return resolve({
+            process: "info",
+            message: "Usuario no encontrado."
+          });
+        }
+
+        return resolve({
+          process: "success",
+          message: "Usuario validado exitosamente.",
+        });
+      }
+    );
+  })
+}
+
+// CC-010
+export const getTokenByReq = (req) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+  if (!token || token === "null" || token === "undefined" || token.trim() === "") {
+    return {
+      process: "session-expired",
+      message: "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad (CC-010)."
+    };
+  }
+  return {
+    process: "success",
+    token: token
+  };
+}
+
+export const getAuthInfo = (req, infoLabel) => {
+
+  if (infoLabel === 'userid') {
+    const user = req.user;
+    return user.id;
+  }
+
+  if (infoLabel === 'token') {
+    return req.token;
+  }
+}
+
 
 // Get role ID by name
 export const getRoleIdByName = (roleName) => {
@@ -412,11 +475,11 @@ export const getUserIdByEmail = (email) => {
       [email],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar usuario." });
+          return resolve({ process: "error", message: "Error al consultar usuario." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Usuario no encontrado." });
+          return resolve({ process: "error", message: "Usuario no encontrado." });
         }
         return resolve({
           message: "Usuario encontrado.",
@@ -434,15 +497,16 @@ export const getServiceRequestStateIDByName = (name) => {
       [name],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar estado de solicitud de servicio." });
+          return resolve({ process: "error", message: "Error al consultar estado de solicitud de servicio." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Estado de solicitud de servicio no encontrado." });
+          return resolve({ process: "error", message: "Estado de solicitud de servicio no encontrado." });
         }
         return resolve({
           message: "Estado de solicitud de servicio encontrado.",
-          id: result.rows[0].id
+          id: result.rows[0].id,
+          description: result.rows[0].description
         });
       }
     );
@@ -490,7 +554,7 @@ export const createUserAccount = (user_id, bank_name, account_number, created_by
         ],
         (err, result) => {
           if (err) {
-            return reject({ process: "error", message: "Error al crear cuenta de usuario." });
+            return resolve({ process: "error", message: "Error al crear cuenta de usuario." });
           }
           return resolve({
             process: "success",
@@ -558,11 +622,11 @@ export const getDocumentTypeByName = (name) => {
       [name],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar tipo de documento." });
+          return resolve({ process: "error", message: "Error al consultar tipo de documento." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Tipo de documento no encontrado." });
+          return resolve({ process: "error", message: "Tipo de documento no encontrado." });
         }
         return resolve({
           message: "Tipo de documento encontrado.",
@@ -580,14 +644,20 @@ export const getPersonIdInUsersByEmail = (email) => {
       [email],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar persona." });
+          return resolve({
+            process: "error",
+            message: "Error al consultar el usuario con el correo electrónico."
+          });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Persona no encontrada." });
+          return resolve({
+            process: "error",
+            message: "Usuario no encontrado con el correo electrónico."
+          });
         }
         return resolve({
-          message: "Persona encontrada.",
+          message: "Usuario encontrado con el correo electrónico, se obtuvo el ID de la persona.",
           id: result.rows[0].person_id
         });
       }
@@ -626,7 +696,7 @@ export const isPersonHasUserByDocument = (document_number) => {
       [document_number],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar persona." });
+          return resolve({ process: "error", message: "Error al consultar persona." });
         }
 
         if (result.rows.length === 0) {
