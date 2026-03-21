@@ -1,12 +1,13 @@
 import pool from "../../config/db.config.js";
 import { hashPassword } from "../../utils/password.js";
-import { sendEmail } from "../../utils/shared.js";
+import { sendEmail, sendEmailV2 } from "../../utils/shared.js";
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import { validatePersonExistByDocumentEmailPhone, validateUserExist, validateCodeAndExpiresAt, getDocumentTypeIdByAcronym, createPersonLocation, createUserAccount, isPersonHasUserByDocument } from "../common/common.controller.js";
 
 import { generateToken, transversalUUID, generateVerificationCode, getExpirationDate, } from "../../utils/shared.js";
 import dotenv from "dotenv";
+import { logger } from "../../utils/logger.js";
 dotenv.config();
 
 //*** SignUp ***
@@ -54,6 +55,10 @@ export const signUp = async (req, res) => {
   const documentType = await getDocumentTypeIdByAcronym(document_type_acronym);
   if (documentType.process === "error") {
     // TD-001: Error con obtención de ID de Tipo documento
+    logger.error(`SignupController.signUp: Error al obtener el ID del tipo de documento.`, {
+      document,
+      document_type_acronym,
+    });
     return res.status(400).json({
       process: "error",
       message: "Se ha presentado un inconveniente y no se pudo realizar el registro (TD-001)"
@@ -80,7 +85,20 @@ export const signUp = async (req, res) => {
 
       const createPersonLocationResult = await createPersonLocation(result.rows[0].id, 'Pendiente', 'Pendiente', 'Pendiente', 'Pendiente', 'Pendiente', transversalUUID());
       if (createPersonLocationResult.process === "error") {
-        console.log('Error al crear ubicación de persona (SC-AC-001).', createPersonLocationResult);
+        logger.error(`SignupController.signUp: Error al crear ubicación de persona.`, {
+          document,
+          document_type_acronym,
+          name,
+          middle_name,
+          last_name,
+          email,
+          phone,
+          password,
+          roleName,
+          bankName,
+          accountNumber,
+          createPersonLocationResult,
+        });
         // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
       }
 
@@ -106,10 +124,14 @@ export const signUp = async (req, res) => {
           const user_id = result.rows[0].id;
           const createUserAccountResult = await createUserAccount(user_id, bankName, accountNumber, transversalUUID());
           if (createUserAccountResult.process === "error") {
-            console.log('Error al crear cuenta de usuario (SC-AC-001).', createUserAccountResult);
-            // return res.status(500).json({ process: "error", message: "Error al crear cuenta de usuario." });
+            logger.error(`SignupController.signUp: Error al crear cuenta de usuario.`, {
+              user_id,
+              bankName,
+              accountNumber,
+              createUserAccountResult,
+            });
           }
-          // Update createdby and updatedby in persons, by user self
+
           await pool.query(
             "UPDATE persons SET created_by = $1, updated_by = $2 WHERE id = $3",
             [user_id, user_id, person_id]
@@ -121,10 +143,29 @@ export const signUp = async (req, res) => {
             [roleName],
             async (err, result) => {
               if (err) {
-                return res.status(500).json({ message: "Error al consultar rol." });
+                logger.error(`SignupController.signUp: Error al consultar rol.`, {
+                  document,
+                  document_type_acronym,
+                  name,
+                  middle_name,
+                  last_name,
+                  email,
+                  phone,
+                  password,
+                  roleName,
+                  bankName,
+                  accountNumber,
+                });
+                return res.status(500).json({
+                  process: "error",
+                  message: "Error al consultar rol."
+                });
               }
               if (result.rows.length === 0) {
-                return res.status(401).json({ message: "Rol no encontrado." });
+                return res.status(401).json({
+                  process: "error",
+                  message: "Rol no encontrado."
+                });
               }
               const role_id = result.rows[0].id;
 
@@ -165,12 +206,14 @@ export const signUp = async (req, res) => {
                   });
                 }
               } else {
-                const sendEmailRegisterUserClient = await sendEmail(email, 'SIO - Bienvenido a SIO', '000000', name, '', 'register-user-client');
+                const sendEmailRegisterUserClient = await sendEmailV2(email, 'SIO Colombia - Bienvenido(a)', 'register-user-referral', { person_name: name });
                 if (!sendEmailRegisterUserClient) {
-                  return res.status(500).send({
-                    process: "error",
-                    message: "Error al enviar correo de bienvenida a SIO al cliente.",
-                  });
+                  logger.error(`Error al enviar correo de bienvenida a SIO al cliente.`,
+                    {
+                      email,
+                      person_name: name
+                    }
+                  );
                 }
               }
 
@@ -240,16 +283,35 @@ export const signUpGenerateCode = async (req, res) => {
             message: "Error al generar código. intentelo de nuevo."
           });
       }
-      // Send email with code to user for registration
-      const sendEmailSignUpCode = await sendEmail(email, 'SIO - Código de verificación', code, name, email, 'user-registration');
-      console.log('Log tracking (signup.controller.js - signUpGenerateCode): ', sendEmailSignUpCode);
 
-      if (!sendEmailSignUpCode) {
-        return res.status(500).send({
-          process: "error",
-          message: "Error al enviar correo del código de registro.",
+      // const resultSendMail = await sendEmail(email, 'SIO - Código de verificación', code, name, email, 'user-registration');
+      const resultSendMail = await sendEmailV2(email, 'SIO Colombia - Código de verificación', 'user-registration',
+        {
+          person_name: name,
+          code: code,
+        });
+      if (!resultSendMail) {
+        logger.error(`SignupController.signUpGenerateCode: Error al enviar correo de verificación.`, {
+          email,
+          person_name: name,
+          code: code,
+        });
+        return res.status(500).json({
+          process: "info",
+          message: 'Lo sentimos, no se pudo enviar el correo de verificación, por favor intente nuevamente.'
         });
       }
+
+      // Send email with code to user for registration
+      // const sendEmailSignUpCode = await sendEmail(email, 'SIO - Código de verificación', code, name, email, 'user-registration');
+      // console.log('Log tracking (signup.controller.js - signUpGenerateCode): ', sendEmailSignUpCode);
+
+      // if (!sendEmailSignUpCode) {
+      //   return res.status(500).send({
+      //     process: "error",
+      //     message: "Error al enviar correo del código de registro.",
+      //   });
+      // }
       return res
         .status(200)
         .json({
