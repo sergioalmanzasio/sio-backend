@@ -2,15 +2,16 @@ import jwt from "jsonwebtoken";
 import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
 import { getDocumentTypeIdByAcronym, getPersonIdByDocument, getUserIdByEmail, getUserDataBankByUserId, getDocumentTypeByName, getBankIdByName, getPersonIdInUsersByEmail, getUserIDByReferralSystemSIO } from "../common/common.controller.js";
-import { transversalUUID } from "../../utils/shared.js";
+import { transversalUUID, sendEmailV2 } from "../../utils/shared.js";
+import { logger } from "../../utils/logger.js";
 
 // PC-AC-001
 export const createPersonByReferral = async (req, res) => {
   const { document, document_type_acronym, name, middle_name, last_name, email, phone,
     department, city, neighborhood, address, type_of_housing,
-    observations, referral_email } = req.body;
+    referral_email } = req.body;
 
-  if (!document || !document_type_acronym || !name || !last_name || !email || !phone || !department || !city || !neighborhood || !address || !type_of_housing || !observations || !referral_email) {
+  if (!document || !document_type_acronym || !name || !last_name || !email || !phone || !department || !city || !neighborhood || !address || !type_of_housing || !referral_email) {
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
 
@@ -59,8 +60,14 @@ export const createPersonByReferral = async (req, res) => {
         ],
         (err, result) => {
           if (err) {
-            return res.status(500).json({ process: "error", message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde." });
+            logger.error('PersonController.createPersonByReferral: Error al crear cliente', err, {
+              client_document: document,
+              client_name: name,
+              client_email: email,
+            });
+            return res.status(500).json({ process: "info", message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde." });
           }
+
           return res.status(200).json({
             process: "success",
             message: "Cliente creado exitosamente."
@@ -108,14 +115,13 @@ export const createPerson = async (req, res) => {
 
           const userIDByReferralSystemSIO = await getUserIDByReferralSystemSIO();
           if (userIDByReferralSystemSIO.process === "error") {
-            console.log(`
-              Action: (PC-AC-002) createPerson \n
-              Process: Auto registro de cliente \n
-              Error: Obtención de ID de Usuario \n 
-              ** Datos para validar ** \n 
-              Documento de cliente: ${document} \n
-              ID de canaldirecto user: 'Obtener en BD' \n 
-            `);
+            logger.error('Error al obtener ID de Usuario SIO', userIDByReferralSystemSIO, {
+              action: 'Person.Controller.createPerson',
+              client_document: document,
+              client_name: name,
+              client_email: email,
+              review: 'Obtener el ID de usuario de canaldirecto en BD'
+            });
           }
 
           pool.query(
@@ -124,14 +130,12 @@ export const createPerson = async (req, res) => {
             async (err, resultAddReferredClient) => {
               if (err) {
                 // RC-001: Error al crear cliente referido
-                console.log(`
-                  Action: (PC-AC-002) createPerson \n
-                  Process: Auto registro de cliente \n
-                  Error: Creación de relación cliente y referido del sistema SIO \n 
-                  ** Datos para validar ** \n 
-                  Documento de cliente: ${document} \n
-                  ID de canaldirecto user: 'Obtener en BD' \n 
-                `);
+                logger.error('Error al crear cliente referido', err, {
+                  action: 'Person.Controller.createPerson',
+                  client_document: document,
+                  client_name: name,
+                  client_email: email,
+                });
               }
 
               const coordinatorService = await pool.query(
@@ -142,28 +146,37 @@ export const createPerson = async (req, res) => {
 
               pool.query(
                 `INSERT INTO assigned_referrals (referred_client_id, referred_client_code, MKT_user_id, created_by) 
-                VALUES (
-                  $1,
-                  $2,
-                  $3,
-                  $4
-                )`,
+                VALUES ($1,$2,$3,$4)`,
                 [
-                  resultAddReferredClient.rows[0].id,
-                  resultAddReferredClient.rows[0].code,
-                  coordinatorService.rows.length === 0 ? transversalUUID() : coordinatorService.rows[0].user_id,
-                  userIDByReferralSystemSIO.id
+                  resultAddReferredClient.rows[0].id, resultAddReferredClient.rows[0].code,
+                  coordinatorService.rows.length === 0 ? transversalUUID() : coordinatorService.rows[0].user_id, userIDByReferralSystemSIO.id
                 ],
-                (err, resultAssignedReferral) => {
+                async (err, resultAssignedReferral) => {
                   if (err) {
-                    console.log(`
-                      Action: (PC-AC-002) createPerson \n
-                      Process: Auto registro de cliente \n
-                      Error: Asignación a coordinador de servicios \n 
-                      ** Datos para validar ** \n 
-                      Documento de cliente: ${document} \n
-                      ID de canaldirecto user: 'Obtener en BD' \n 
-                    `);
+                    logger.error('Error al asignar coordinador de servicios', err, {
+                      action: 'Person.Controller.createPerson',
+                      client_document: document,
+                      client_name: name,
+                      client_email: email,
+                      review: 'Obtener el ID de usuario de canaldirecto en BD'
+                    });
+                  }
+
+                  const sendEmail = await sendEmailV2(
+                    email,
+                    'Bienvenido a SIO',
+                    'welcome-client-registered',
+                    {
+                      customer_name: name,
+                    }
+                  );
+
+                  if (sendEmail.process === "error") {
+                    logger.error('PersonController.createPersonByReferral: Error al enviar correo de bienvenida al registrarse el cliente.', sendEmail, {
+                      client_document: document,
+                      client_name: name,
+                      client_email: email,
+                    });
                   }
 
                   return res.status(200).json({
@@ -176,9 +189,6 @@ export const createPerson = async (req, res) => {
 
             }
           );
-
-
-
         }
       );
     }
@@ -217,108 +227,86 @@ export const getPersonByEmail = async (req, res) => {
     return res.status(400).json({ process: "email-required", message: "Correo es obligatorio." });
   }
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-    });
-  }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
-    pool.query(
-      `SELECT prs."document" as document_number, prs.document_type_id, doc."name" document_type_name,
-          prs."name" AS first_name, prs.middle_name AS middle_name, 
-          split_part(prs.last_name, ' ', 1) AS last_name_1, split_part(prs.last_name, ' ', 2) AS last_name_2,
-          prs.email, prs.phone, 
-          rol."name" role_name 
-          FROM persons prs
-          JOIN document_types doc on prs.document_type_id = doc.id
-          JOIN users us ON us.person_id = prs.id
-          JOIN user_roles usr ON us.id = usr.user_id
-          JOIN roles rol ON usr.role_id = rol.id
-          WHERE prs.email = $1`,
-      [email],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({ process: "error", message: "Error al consultar persona." });
-        }
-        if (result.rows.length === 0) {
-          return res.status(401).json({ process: "person-not-found", message: "Persona no encontrada." });
-        }
-
-        const personID = await getPersonIdByDocument(result.rows[0].document_number);
-        if (personID.process === "error") {
-          console.log('Error al obtener ID de persona (PC-AC-003).', personID);
-          // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
-        }
-
-        let dataLocation = {};
-        pool.query(
-          `SELECT department, city, neighborhood, address, type_of_housing 
-              FROM person_locations WHERE is_active = TRUE AND person_id = $1`,
-          [personID.id],
-          async (err, resultLocation) => {
-            if (err) {
-              return res.status(500).json({ process: "error", message: "Error al consultar persona." });
-            }
-
-            if (resultLocation.rows.length === 0) {
-              console.log('No se encontro ubicación de la persona (PC-AC-003)');
-              // return res.status(401).json({ process: "person-not-found", message: "Persona no encontrada." });
-            } else {
-              dataLocation = resultLocation.rows[0];
-            }
-
-            const userID = await getUserIdByEmail(email);
-            if (userID.process === "error") {
-              console.log('Error al obtener ID de usuario (PC-AC-003).', userID);
-              // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
-            }
-
-            // TODO: Get bank data, TABLE NO EXIST
-            let dataBank = {};
-            const userDataBank = await getUserDataBankByUserId(userID.id);
-            if (userDataBank.process === "error") {
-              console.log('Error al obtener datos bancarios (PC-AC-003). Correo: ', email, ' Datos: ', userDataBank);
-              // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
-            } else {
-              dataBank = userDataBank.data;
-            }
-
-            return res.status(200).json({
-              process: "success",
-              message: "Persona encontrada.",
-              data: {
-                person_info: {
-                  ...result.rows[0],
-                },
-                data_location: {
-                  ...dataLocation,
-                  is_data_location: Object.keys(dataLocation).length > 0,
-                },
-                data_bank: {
-                  ...dataBank,
-                  is_data_bank: Object.keys(dataBank).length > 0,
-                }
-              }
-            });
-
-          }
-        );
-
-
+  pool.query(
+    `SELECT prs."document" as document_number, prs.document_type_id, doc."name" document_type_name,
+        prs."name" AS first_name, prs.middle_name AS middle_name, 
+        split_part(prs.last_name, ' ', 1) AS last_name_1, split_part(prs.last_name, ' ', 2) AS last_name_2,
+        prs.email, prs.phone, 
+        rol."name" role_name 
+        FROM persons prs
+        JOIN document_types doc on prs.document_type_id = doc.id
+        JOIN users us ON us.person_id = prs.id
+        JOIN user_roles usr ON us.id = usr.user_id
+        JOIN roles rol ON usr.role_id = rol.id
+        WHERE prs.email = $1`,
+    [email],
+    async (err, result) => {
+      if (err) {
+        return res.status(500).json({ process: "error", message: "Error al consultar persona." });
       }
-    );
-  });
+      if (result.rows.length === 0) {
+        return res.status(401).json({ process: "person-not-found", message: "Persona no encontrada." });
+      }
+
+      const personID = await getPersonIdByDocument(result.rows[0].document_number);
+      if (personID.process === "error") {
+        logger.error('PersonController.getPersonByEmail - Error al obtener ID de persona: ', email);
+      }
+
+      let dataLocation = {};
+      pool.query(
+        `SELECT department, city, neighborhood, address, type_of_housing 
+            FROM person_locations WHERE is_active = TRUE AND person_id = $1`,
+        [personID.id],
+        async (err, resultLocation) => {
+          if (err) {
+            return res.status(500).json({ process: "error", message: "Error al consultar persona." });
+          }
+
+          if (resultLocation.rows.length === 0) {
+            logger.error('PersonController.getPersonByEmail - No se encontro ubicación de la persona: ', email);
+          } else {
+            dataLocation = resultLocation.rows[0];
+          }
+
+          const userID = await getUserIdByEmail(email);
+          if (userID.process === "error") {
+            logger.error('PersonController.getPersonByEmail - Error al obtener ID de usuario: ', email);
+          }
+
+          let dataBank = {};
+          const userDataBank = await getUserDataBankByUserId(userID.id);
+          if (userDataBank.process === "error") {
+            logger.error('PersonController.getPersonByEmail - Error al obtener datos bancarios: ', email);
+          } else {
+            dataBank = userDataBank.data;
+          }
+
+          return res.status(200).json({
+            process: "success",
+            message: "Persona encontrada.",
+            data: {
+              person_info: {
+                ...result.rows[0],
+              },
+              data_location: {
+                ...dataLocation,
+                is_data_location: Object.keys(dataLocation).length > 0,
+              },
+              data_bank: {
+                ...dataBank,
+                is_data_bank: Object.keys(dataBank).length > 0,
+              }
+            }
+          });
+
+        }
+      );
+
+
+    }
+  );
+
 };
 
 // Update only data person
@@ -330,47 +318,51 @@ export const updatePersonalInfo = async (req, res) => {
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+  const documentType = await getDocumentTypeByName(documentTypeName);
+  if (documentType.process === "error") {
+    logger.error('PersonController.updatePersonalInfo - Error al obtener tipo de documento.', documentType, {
+      email: email,
+      message: documentType.message || "Error al obtener tipo de documento."
     });
   }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
+
+  const userIDByToken = req.user.id;
+  const userID = await getUserIdByEmail(email);
+  let isTransversalUUID = false;
+  if (userID.process === "error") {
+    logger.error('PersonController.updatePersonalInfo - Error al obtener ID de usuario.', userID, {
+      email: email,
+      message: userID.message || "Error al obtener ID de usuario."
+    });
+    userID.id = transversalUUID();
+    isTransversalUUID = true;
+  }
+
+  if (!isTransversalUUID) {
+    if (userIDByToken !== userID.id) {
       return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
+        process: "info",
+        message: "No tienes permiso para actualizar los datos de esta persona."
       });
     }
+  }
 
-    const documentType = await getDocumentTypeByName(documentTypeName);
-    if (documentType.process === "error") {
-      console.log('Error al obtener tipo de documento (PC-AC-004).', documentType);
-      // return res.status(500).json({ process: "error", message: "Error al obtener tipo de documento." });
-    }
-
-    const userID = await getUserIdByEmail(email);
-    if (userID.process === "error") {
-      console.log('Error al obtener ID de usuario (PC-AC-004).', userID);
-      userID.id = transversalUUID();
-      // return res.status(500).json({ process: "error", message: "Error al crear ubicación de persona." });
-    }
-
-    pool.query(
-      `UPDATE persons SET document_type_id = $1, document = $2, name = $3, middle_name = $4, last_name = $5, phone = $6, updated_by = $7 WHERE email = $8`,
-      [documentType.id, documentNumber, name, middleName, lastName, phone, userID.id, email],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({ process: "error", message: "Error al actualizar persona." });
-        }
-        return res.status(200).json({ process: "success", message: "Persona actualizada exitosamente." });
+  pool.query(
+    `UPDATE persons SET document_type_id = $1, document = $2, name = $3, middle_name = $4, last_name = $5, phone = $6, updated_by = $7 WHERE email = $8`,
+    [documentType.id, documentNumber, name, middleName, lastName, phone, userID.id, email],
+    async (err, result) => {
+      if (err) {
+        logger.error('PersonController.updatePersonalInfo - Error al actualizar información personal.', err, {
+          documentNumber: documentNumber,
+          email: email,
+          message: err.message || "Error al actualizar información personal."
+        });
+        return res.status(500).json({ process: "error", message: "Error al actualizar información personal." });
       }
-    );
-  });
+      return res.status(200).json({ process: "success", message: "Información personal actualizada exitosamente." });
+    }
+  );
+
 };
 
 // Update only data bank person
@@ -382,46 +374,59 @@ export const updateBankInfo = async (req, res) => {
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+  const userID = await getUserIdByEmail(email);
+  if (userID.process === "error") {
+    logger.error('PersonController.updateBankInfo - Error al obtener ID de usuario.', userID, {
+      email: email,
+      message: userID.message || "Error al obtener ID de usuario."
+    });
+    return res.status(500).json({
+      process: "error",
+      message: "No fue posible actualizar los datos bancarios, intente nuevamente."
     });
   }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
+
+  const userIDByToken = req.user.id;
+  if (userIDByToken !== userID.id) {
+    return res.status(401).json({
+      process: "info",
+      message: "No tienes permiso para actualizar los datos bancarios de esta persona."
+    });
+  }
+
+  const bankAccount = await getBankIdByName(bankName);
+  if (bankAccount.process === "error") {
+    logger.error('PersonController.updateBankInfo - Error al obtener tipo de cuenta bancaria.', bankAccount, {
+      email: email,
+      message: bankAccount.message || "Error al obtener tipo de cuenta bancaria."
+    });
+    return res.status(500).json({
+      process: "error",
+      message: "No fue posible actualizar los datos bancarios, intente nuevamente."
+    });
+  }
+
+  pool.query(
+    `UPDATE user_accounts SET bank_id = $1, account_number = $2, updated_by = $3 WHERE user_id = $4`,
+    [bankAccount.id, accountNumber, userID.id, userID.id],
+    async (err, result) => {
+      if (err) {
+        logger.error('PersonController.updateBankInfo - Error al actualizar datos bancarios.', err, {
+          email: email,
+          message: err.message || "Error al actualizar datos bancarios."
+        });
+        return res.status(500).json({
+          process: "error",
+          message: "No fue posible actualizar los datos bancarios, intente nuevamente."
+        });
+      }
+      return res.status(200).json({
+        process: "success",
+        message: "Datos bancarios actualizados exitosamente."
       });
     }
+  );
 
-    const userID = await getUserIdByEmail(email);
-    if (userID.process === "error") {
-      console.log('Error al obtener ID de usuario por email (PC-AC-005).', userID);
-      return res.status(500).json({ process: "error", message: "No fue posible actualizar los datos bancarios, intente nuevamente." });
-    }
-
-    const bankAccount = await getBankIdByName(bankName);
-    if (bankAccount.process === "error") {
-      console.log('Error al obtener tipo de cuenta bancaria por nombre (PC-AC-005).', bankAccount);
-      return res.status(500).json({ process: "error", message: "No fue posible actualizar los datos bancarios, intente nuevamente." });
-    }
-
-    pool.query(
-      `UPDATE user_accounts SET bank_id = $1, account_number = $2, updated_by = $3 WHERE user_id = $4`,
-      [bankAccount.id, accountNumber, userID.id, userID.id],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({ process: "error", message: "Error al actualizar datos bancarios." });
-        }
-        return res.status(200).json({ process: "success", message: "Datos bancarios actualizados exitosamente." });
-      }
-    );
-  });
 };
 
 // Update only data location person
@@ -433,46 +438,59 @@ export const updateLocationInfo = async (req, res) => {
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+  const userID = await getUserIdByEmail(email);
+  if (userID.process === "error") {
+    logger.error('PersonController.updateLocationInfo - Error al obtener ID de usuario.', userID, {
+      email: email,
+      message: userID.message || "Error al obtener ID de usuario."
+    });
+    return res.status(500).json({
+      process: "error",
+      message: "No fue posible actualizar los datos de ubicación, intente nuevamente más tarde."
     });
   }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
+
+  const userIDByToken = req.user.id;
+  if (userIDByToken !== userID.id) {
+    return res.status(401).json({
+      process: "info",
+      message: "No tienes permiso para actualizar los datos de ubicación de esta persona."
+    });
+  }
+
+  const personID = await getPersonIdInUsersByEmail(email);
+  if (personID.process === "error") {
+    logger.error('PersonController.updateLocationInfo - Error al obtener ID de persona.', personID, {
+      email: email,
+      message: personID.message || "Error al obtener ID de persona."
+    });
+    return res.status(500).json({
+      process: "error",
+      message: "No fue posible actualizar los datos de ubicación, intente nuevamente más tarde."
+    });
+  }
+
+  pool.query(
+    `UPDATE person_locations SET department = $1, city = $2, neighborhood = $3, address = $4, type_of_housing = $5, updated_by = $6 WHERE person_id = $7`,
+    [department, city, neighborhood, address, type_of_housing, userID.id, personID.id],
+    async (err, result) => {
+      if (err) {
+        logger.error('PersonController.updateLocationInfo - Error al actualizar datos de ubicación.', err, {
+          email: email,
+          message: err.message || "Error al actualizar datos de ubicación."
+        });
+        return res.status(500).json({
+          process: "error",
+          message: "No fue posible actualizar los datos de ubicación, intente nuevamente."
+        });
+      }
+      return res.status(200).json({
+        process: "success",
+        message: "Datos de ubicación actualizados exitosamente."
       });
     }
+  );
 
-    const userID = await getUserIdByEmail(email);
-    if (userID.process === "error") {
-      console.log('Error al obtener ID de usuario por email (PC-AC-006).', userID);
-      return res.status(500).json({ process: "error", message: "No fue posible actualizar los datos de ubicación, intente nuevamente." });
-    }
-
-    const personID = await getPersonIdInUsersByEmail(email);
-    if (personID.process === "error") {
-      console.log('Error al obtener ID de persona por email (PC-AC-006).', personID);
-      return res.status(500).json({ process: "error", message: "No fue posible actualizar los datos de ubicación, intente nuevamente." });
-    }
-
-    pool.query(
-      `UPDATE person_locations SET department = $1, city = $2, neighborhood = $3, address = $4, type_of_housing = $5, updated_by = $6 WHERE person_id = $7`,
-      [department, city, neighborhood, address, type_of_housing, userID.id, personID.id],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({ process: "error", message: "Error al actualizar datos de ubicación." });
-        }
-        return res.status(200).json({ process: "success", message: "Datos de ubicación actualizados exitosamente." });
-      }
-    );
-  });
 };
 
 
