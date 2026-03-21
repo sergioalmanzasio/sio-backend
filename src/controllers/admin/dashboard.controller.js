@@ -1,10 +1,11 @@
 import pool from "../../config/db.config.js";
 import { userWithPermissions } from "../common/common.controller.js";
+import { logger } from "../../utils/logger.js";
 
 // DC-AC-001
 export const getTotalActiveUsers = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -16,6 +17,7 @@ export const getTotalActiveUsers = async (req, res) => {
     pool.query(`SELECT COUNT(*) as total FROM users usr WHERE usr.is_active = TRUE`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalActiveUsers Error al obtener total de usuarios activos", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de usuarios registrados, inténtelo más tarde. (RC-AC-006).",
@@ -39,11 +41,11 @@ export const getTotalActiveUsers = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getUserRegistered: ", error);
-
+    logger.error("Dashboard.Controller.getTotalActiveUsers Error global al obtener total de usuarios activos", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de usuarios registrados, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de usuarios registrados, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
@@ -52,7 +54,7 @@ export const getTotalActiveUsers = async (req, res) => {
 // SELECT count(*) FROM referral_service_requests
 export const getTotalReferralServiceRequests = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -64,6 +66,7 @@ export const getTotalReferralServiceRequests = async (req, res) => {
     pool.query(`SELECT COUNT(*) as total FROM referral_service_requests`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalReferralServiceRequests Error al obtener total de solicitudes de servicios", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios, inténtelo más tarde. (RC-AC-006).",
@@ -87,11 +90,11 @@ export const getTotalReferralServiceRequests = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalReferralServiceRequests: ", error);
-
+    logger.error("Dashboard.Controller.getTotalReferralServiceRequests Error global al obtener total de solicitudes de servicios", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
@@ -100,7 +103,7 @@ export const getTotalReferralServiceRequests = async (req, res) => {
 // SELECT count(*) FROM referral_commissions WHERE status = 'PAID'
 export const getTotalPaidReferralCommissions = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -121,6 +124,7 @@ export const getTotalPaidReferralCommissions = async (req, res) => {
               WHERE status = 'PAID'`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalPaidReferralCommissions Error al obtener total de comisiones pagadas", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de comisiones pagadas, inténtelo más tarde. (RC-AC-006).",
@@ -144,11 +148,11 @@ export const getTotalPaidReferralCommissions = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalPaidReferralCommissions: ", error);
-
+    logger.error("Dashboard.Controller.getTotalPaidReferralCommissions Error global al obtener total de comisiones pagadas", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de comisiones pagadas, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de comisiones pagadas, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
@@ -156,7 +160,7 @@ export const getTotalPaidReferralCommissions = async (req, res) => {
 // DC-AC-004
 export const getTotalPendingReferralServiceRequests = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -170,6 +174,7 @@ export const getTotalPendingReferralServiceRequests = async (req, res) => {
                 WHERE sst.status in ('IN_PROGRESS','PENDING')`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalPendingReferralServiceRequests Error al obtener total de solicitudes de servicios pendientes", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios pendientes, inténtelo más tarde. (RC-AC-006).",
@@ -193,11 +198,11 @@ export const getTotalPendingReferralServiceRequests = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalPendingReferralServiceRequests: ", error);
-
+    logger.error("Dashboard.Controller.getTotalPendingReferralServiceRequests Error global al obtener total de solicitudes de servicios pendientes", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios pendientes, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios pendientes, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
@@ -205,7 +210,7 @@ export const getTotalPendingReferralServiceRequests = async (req, res) => {
 // DC-AC-005
 export const getTotalServiceRequestsByMonth = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -247,6 +252,7 @@ export const getTotalServiceRequestsByMonth = async (req, res) => {
             ORDER BY gs.mes DESC;`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalServiceRequestsByMonth Error al obtener total de solicitudes de servicios por mes", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios por mes, inténtelo más tarde. (RC-AC-006).",
@@ -270,11 +276,11 @@ export const getTotalServiceRequestsByMonth = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalServiceRequestsByMonth: ", error);
-
+    logger.error("Dashboard.Controller.getTotalServiceRequestsByMonth Error global al obtener total de solicitudes de servicios por mes", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios por mes, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de solicitudes de servicios por mes, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
@@ -282,7 +288,7 @@ export const getTotalServiceRequestsByMonth = async (req, res) => {
 // DC-AC-006
 export const getTotalPaidCommissionsByMonth = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -324,6 +330,7 @@ export const getTotalPaidCommissionsByMonth = async (req, res) => {
             ORDER BY gs.mes DESC;`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalPaidCommissionsByMonth Error al obtener total de comisiones pagadas por mes", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de comisiones pagadas por mes, inténtelo más tarde. (RC-AC-006).",
@@ -347,11 +354,11 @@ export const getTotalPaidCommissionsByMonth = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalPaidReferralCommissionsByMonth: ", error);
-
+    logger.error("Dashboard.Controller.getTotalPaidCommissionsByMonth Error global al obtener total de comisiones pagadas por mes", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de comisiones pagadas por mes, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de comisiones pagadas por mes, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
@@ -359,7 +366,7 @@ export const getTotalPaidCommissionsByMonth = async (req, res) => {
 // DC-AC-007
 export const getTotalUsersByRole = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -381,6 +388,7 @@ export const getTotalUsersByRole = async (req, res) => {
             ORDER BY total_usuarios DESC;`,
       (err, result) => {
         if (err) {
+          logger.error("Dashboard.Controller.getTotalUsersByRole Error al obtener total de usuarios por rol", err);
           return res.status(200).json({
             process: "success",
             message: "Lo sentimos, no se pudo obtener el total de usuarios por rol, inténtelo más tarde. (RC-AC-006).",
@@ -404,11 +412,11 @@ export const getTotalUsersByRole = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalUsersByRole: ", error);
-
+    logger.error("Dashboard.Controller.getTotalUsersByRole Error global al obtener total de usuarios por rol", error);
     return res.status(500).json({
       process: "error",
-      message: "Lo sentimos, no se pudo obtener el total de usuarios por rol, inténtelo más tarde. (RC-AC-006).",
+      message: "Lo sentimos, no se pudo obtener el total de usuarios por rol, inténtelo más tarde.",
+      data: 0,
     });
   }
 }
