@@ -8,7 +8,7 @@ import { userWithPermissions, validateUserIsActive } from "../common/common.cont
 // AC-BN-001
 export const createBonus = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -28,7 +28,8 @@ export const createBonus = async (req, res) => {
       max_times_per_user,
       min_sales_required,
       valid_from,
-      valid_until
+      valid_until,
+      is_active
     } = req.body;
 
     // Validar campos obligatorios
@@ -40,22 +41,25 @@ export const createBonus = async (req, res) => {
     }
 
     // Verificar si ya existe un bonus activo
-    const activeBonus = await pool.query(
-      "SELECT id, title FROM bonuses WHERE is_active = TRUE LIMIT 1"
-    );
+    if (is_active) {
+      const activeBonus = await pool.query(
+        "SELECT id, title FROM bonuses WHERE is_active = TRUE LIMIT 1"
+      );
 
-    if (activeBonus.rows.length > 0) {
-      return res.status(400).json({
-        process: "error",
-        message: `Ya existe un bono activo: "${activeBonus.rows[0].title}". Debe inactivar el bono actual antes de crear uno nuevo.`,
-      });
+      if (activeBonus.rows.length > 0) {
+        return res.status(400).json({
+          process: "info",
+          message: `Ya existe un bono activo: "${activeBonus.rows[0].title}". Debe inactivar el bono actual antes de crear uno nuevo.`,
+        });
+      }
     }
+
 
     // Insertar el nuevo bono como activo
     const result = await pool.query(
       `INSERT INTO bonuses 
      (title, description, bonus_type, bonus_amount, apply_type, max_times_per_user, min_sales_required, is_active, valid_from, valid_until, created_by)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $9, $10)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING *`,
       [
         title,
@@ -65,6 +69,7 @@ export const createBonus = async (req, res) => {
         apply_type || 'EVERY_SALE',
         max_times_per_user || 1,
         min_sales_required || 1,
+        is_active || false,
         valid_from,
         valid_until,
         userId
@@ -91,7 +96,7 @@ export const createBonus = async (req, res) => {
 // AC-BN-002
 export const updateBonus = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -128,8 +133,6 @@ export const updateBonus = async (req, res) => {
       valid_until
     } = req.body;
 
-    console.log('>>> apply_type: ', apply_type)
-
     // Si se quiere activar, verificar que no haya otro bonus activo
     if (is_active) {
       const activeBonus = await pool.query(
@@ -140,7 +143,7 @@ export const updateBonus = async (req, res) => {
       if (activeBonus.rows.length > 0) {
         return res.status(400).json({
           process: "info",
-          message: `No se puede activar este bonus. Ya existe un bonus activo: "${activeBonus.rows[0].title}". Debe inactivarlo primero.`,
+          message: `El bono "${activeBonus.rows[0].title} se encuentra activo". Debe inactivarlo primero.`,
         });
       }
     }
@@ -204,7 +207,7 @@ export const updateBonus = async (req, res) => {
 // AC-BN-003
 export const getActiveBonus = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUser = await validateUserIsActive(token);
     if (validateUser.process !== "success") {
       return res.status(401).json({
@@ -215,87 +218,82 @@ export const getActiveBonus = async (req, res) => {
 
     const result = await pool.query(
       `SELECT 
-                b.id,
-                b.title,
-                b.description,
-                --b.bonus_type,
-                --b.bonus_amount,
-                --b.apply_type,
-                --b.max_times_per_user,
-                --b.min_sales_required,
-                b.is_active,
-                CASE b.bonus_type WHEN 'MONEY' THEN 
-                    '$ ' || REPLACE(
-                        TO_CHAR(b.bonus_amount, 'FM999,999,999,990'),
-                        ',', '.'
-                    )
-                END AS bonus_amount_formatted,
-                CASE b.bonus_type
-                WHEN 'MONEY' THEN 'Dinero'
-                END AS bonus_type_formatted,
-                CASE b.apply_type
-                WHEN 'FIRST_SALE' THEN 'Primera venta'
-                WHEN 'EVERY_SALE' THEN 'Cada venta'
-                WHEN 'ONCE' THEN 'Una vez'
-                WHEN 'AFTER_N_SALES' THEN 'Después de N ventas'
-                END AS apply_type_formatted,
-                TO_CHAR(b.valid_from, 'DD') || ' de ' ||
-                INITCAP(
-                    CASE EXTRACT(MONTH FROM b.valid_from)
-                        WHEN 1 THEN 'ene'
-                        WHEN 2 THEN 'feb'
-                        WHEN 3 THEN 'mar'
-                        WHEN 4 THEN 'abr'
-                        WHEN 5 THEN 'may'
-                        WHEN 6 THEN 'jun'
-                        WHEN 7 THEN 'jul'
-                        WHEN 8 THEN 'ago'
-                        WHEN 9 THEN 'sep'
-                        WHEN 10 THEN 'oct'
-                        WHEN 11 THEN 'nov'
-                        WHEN 12 THEN 'dic'
-                    END
-                ) || ' de ' ||
-                TO_CHAR(b.valid_from, 'YYYY') AS valid_from_formatted,
-                TO_CHAR(b.valid_until, 'DD') || ' de ' ||
-                INITCAP(
-                    CASE EXTRACT(MONTH FROM b.valid_until)
-                        WHEN 1 THEN 'ene'
-                        WHEN 2 THEN 'feb'
-                        WHEN 3 THEN 'mar'
-                        WHEN 4 THEN 'abr'
-                        WHEN 5 THEN 'may'
-                        WHEN 6 THEN 'jun'
-                        WHEN 7 THEN 'jul'
-                        WHEN 8 THEN 'ago'
-                        WHEN 9 THEN 'sep'
-                        WHEN 10 THEN 'oct'
-                        WHEN 11 THEN 'nov'
-                        WHEN 12 THEN 'dic'
-                    END
-                ) || ' de ' ||
-                TO_CHAR(b.valid_until, 'YYYY') AS valid_until_formatted,
-                TO_CHAR(b.created_at, 'DD') || ' de ' ||
-                INITCAP(
-                    CASE EXTRACT(MONTH FROM b.created_at)
-                        WHEN 1 THEN 'ene'
-                        WHEN 2 THEN 'feb'
-                        WHEN 3 THEN 'mar'
-                        WHEN 4 THEN 'abr'
-                        WHEN 5 THEN 'may'
-                        WHEN 6 THEN 'jun'
-                        WHEN 7 THEN 'jul'
-                        WHEN 8 THEN 'ago'
-                        WHEN 9 THEN 'sep'
-                        WHEN 10 THEN 'oct'
-                        WHEN 11 THEN 'nov'
-                        WHEN 12 THEN 'dic'
-                    END
-                ) || ' de ' ||
-                TO_CHAR(b.created_at, 'YYYY FMHH12:MI a.m.') AS created_at_formatted
-                FROM bonuses b
-                WHERE b.is_active = TRUE
-                LIMIT 1`
+          b.id,
+          b.title,
+          b.description,
+          b.is_active,
+          CASE b.bonus_type WHEN 'MONEY' THEN 
+              '$ ' || REPLACE(
+                  TO_CHAR(b.bonus_amount, 'FM999,999,999,990'),
+                  ',', '.'
+              )
+          END AS bonus_amount_formatted,
+          CASE b.bonus_type
+          WHEN 'MONEY' THEN 'Dinero'
+          END AS bonus_type_formatted,
+          CASE b.apply_type
+          WHEN 'FIRST_SALE' THEN 'Primera venta'
+          WHEN 'EVERY_SALE' THEN 'Cada venta'
+          WHEN 'ONCE' THEN 'Una vez'
+          WHEN 'AFTER_N_SALES' THEN 'Después de N ventas'
+          END AS apply_type_formatted,
+          TO_CHAR(b.valid_from, 'DD') || ' de ' ||
+          INITCAP(
+              CASE EXTRACT(MONTH FROM b.valid_from)
+                  WHEN 1 THEN 'ene'
+                  WHEN 2 THEN 'feb'
+                  WHEN 3 THEN 'mar'
+                  WHEN 4 THEN 'abr'
+                  WHEN 5 THEN 'may'
+                  WHEN 6 THEN 'jun'
+                  WHEN 7 THEN 'jul'
+                  WHEN 8 THEN 'ago'
+                  WHEN 9 THEN 'sep'
+                  WHEN 10 THEN 'oct'
+                  WHEN 11 THEN 'nov'
+                  WHEN 12 THEN 'dic'
+              END
+          ) || ' de ' ||
+          TO_CHAR(b.valid_from, 'YYYY') AS valid_from_formatted,
+          TO_CHAR(b.valid_until, 'DD') || ' de ' ||
+          INITCAP(
+              CASE EXTRACT(MONTH FROM b.valid_until)
+                  WHEN 1 THEN 'ene'
+                  WHEN 2 THEN 'feb'
+                  WHEN 3 THEN 'mar'
+                  WHEN 4 THEN 'abr'
+                  WHEN 5 THEN 'may'
+                  WHEN 6 THEN 'jun'
+                  WHEN 7 THEN 'jul'
+                  WHEN 8 THEN 'ago'
+                  WHEN 9 THEN 'sep'
+                  WHEN 10 THEN 'oct'
+                  WHEN 11 THEN 'nov'
+                  WHEN 12 THEN 'dic'
+              END
+          ) || ' de ' ||
+          TO_CHAR(b.valid_until, 'YYYY') AS valid_until_formatted,
+          TO_CHAR(b.created_at, 'DD') || ' de ' ||
+          INITCAP(
+              CASE EXTRACT(MONTH FROM b.created_at)
+                  WHEN 1 THEN 'ene'
+                  WHEN 2 THEN 'feb'
+                  WHEN 3 THEN 'mar'
+                  WHEN 4 THEN 'abr'
+                  WHEN 5 THEN 'may'
+                  WHEN 6 THEN 'jun'
+                  WHEN 7 THEN 'jul'
+                  WHEN 8 THEN 'ago'
+                  WHEN 9 THEN 'sep'
+                  WHEN 10 THEN 'oct'
+                  WHEN 11 THEN 'nov'
+                  WHEN 12 THEN 'dic'
+              END
+          ) || ' de ' ||
+          TO_CHAR(b.created_at, 'YYYY FMHH12:MI a.m.') AS created_at_formatted
+      FROM bonuses b
+      WHERE b.is_active = TRUE
+      LIMIT 1`
     );
 
     if (result.rows.length === 0) {
@@ -333,7 +331,7 @@ export const getActiveBonus = async (req, res) => {
 // GET /api/admin/bonuses/history
 export const getBonusHistory = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const hasPermissions = await userWithPermissions(token);
     if (hasPermissions.process !== "success") {
       return res.status(401).json({
@@ -462,7 +460,7 @@ export const getBonusHistory = async (req, res) => {
 // Get bonuses requested payment
 export const getBonusesRequestedPayment = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const hasPermissions = await userWithPermissions(token);
     if (hasPermissions.process !== "success") {
       return res.status(401).json({
@@ -566,7 +564,7 @@ export const getBonusesRequestedPayment = async (req, res) => {
 // Mark bonuses as PAID
 export const paidBonuses = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const hasPermissions = await userWithPermissions(token);
     if (hasPermissions.process !== "success") {
       return res.status(401).json({
@@ -576,9 +574,6 @@ export const paidBonuses = async (req, res) => {
     }
 
     const { bonusTransactionTokens } = req.body;
-
-    console.log("bonusTransactionTokens", bonusTransactionTokens);
-
     if (!bonusTransactionTokens || !Array.isArray(bonusTransactionTokens) || bonusTransactionTokens.length === 0) {
       return res.status(400).json({
         process: "error",
@@ -591,7 +586,6 @@ export const paidBonuses = async (req, res) => {
     for (const txToken of bonusTransactionTokens) {
       try {
         const decoded = jwt.verify(txToken, authConfig.secret);
-        console.log("decoded", decoded);
         bonusTransactionIds.push(decoded.bonusTransactionId);
       } catch (err) {
         return res.status(400).json({
