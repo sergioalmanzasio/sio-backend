@@ -1,16 +1,14 @@
-import axios from "axios";
+import twilio from "twilio";
+
+const client = twilio(
+ process.env.TWILIO_SID,
+ process.env.TWILIO_TOKEN
+);
 
 export const sendWhatsApp = async ({ to, message }) => {
- return axios.post(
-  process.env.WHATSAPP_API_URL,
-  {
-   to,
-   message,
-  },
-  {
-   headers: {
-    Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-   },
-  }
- );
+ return client.messages.create({
+  from: process.env.TWILIO_WHATSAPP_FROM_PHONE,
+  to: `whatsapp:${to}`,
+  body: message,
+ });
 };

@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
 
 export const sendEmail = async ({ to, subject, html }) => {
  return transporter.sendMail({
-  from: `"TuApp" <${process.env.BREVO_USER}>`,
+  from: `${process.env.BREVO_APP_NAME_MEDIUM} <${process.env.BREVO_USER}>`,
   to,
   subject,
   html,
