@@ -1,8 +1,9 @@
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
-import { transversalUUID } from "../../utils/shared.js";
-import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken, validateUserIsActive } from "../common/common.controller.js";
+import { transversalUUID, sendEmail } from "../../utils/shared.js";
+import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken, validateUserIsActive, validateUserIsActiveByID } from "../common/common.controller.js";
+import { logger } from "../../utils/logger.js";
 
 // RC : Referral Controller
 // AC : Action Controller
@@ -89,7 +90,6 @@ export const getReferredClients = async (req, res) => {
     // US-001: Error al obtener usuario por correo
     return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo obtener los clientes referidos (US-001)." });
   }
-
 
   pool.query(
     `SELECT
@@ -205,97 +205,78 @@ export const getGeneralInformationOfReferralRequestService = async (req, res) =>
     return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
   }
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-    });
-  }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
+  pool.query(
+    `SELECT rsr.id, rsr.filing_number,  
+        srs.description, 
+        TO_CHAR(
+          rsr.created_at,
+          'Mon FMDD "de" YYYY FMHH12:MI a.m.'
+        ) AS created_at_formatted,
+        rsr.offer_id, of.name as offer_name, of.description as offer_description, of.price as offer_price,
+        op."name" as operator_name
+        FROM referral_service_requests rsr
+        JOIN service_request_states srs ON rsr.service_request_state_id = srs.id
+        JOIN offers of ON rsr.offer_id = of.id
+        JOIN operators op ON of.operator_id = op.id
+        WHERE rsr.assigned_referral_code = $1
+        AND rsr.is_active = TRUE`,
+    [referral_code],
+    (err, result) => {
+      if (err) {
+        // RS-001: Error al obtener información de solicitud de servicio
+        return res.status(500).json({ process: "error", message: "Lo sentimos, no se pudo obtener la información, intentelo mas tarde (RS-001)." });
+      }
 
-    pool.query(
-      `SELECT rsr.id, rsr.filing_number,  
-          srs.description, 
-          TO_CHAR(
-            rsr.created_at,
-            'Mon FMDD "de" YYYY FMHH12:MI a.m.'
-          ) AS created_at_formatted,
-          rsr.offer_id, of.name as offer_name, of.description as offer_description, of.price as offer_price,
-          op."name" as operator_name
-          FROM referral_service_requests rsr
-          JOIN service_request_states srs ON rsr.service_request_state_id = srs.id
-          JOIN offers of ON rsr.offer_id = of.id
-          JOIN operators op ON of.operator_id = op.id
-          WHERE rsr.assigned_referral_code = $1
-          AND rsr.is_active = TRUE`,
-      [referral_code],
-      (err, result) => {
-        if (err) {
-          // RS-001: Error al obtener información de solicitud de servicio
-          return res.status(500).json({ process: "error", message: "Lo sentimos, no se pudo obtener la información, intentelo mas tarde (RS-001)." });
-        }
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          process: "info",
+          message: `El referido con dódigo de referencia ${referral_code} no tiene una solicitud activa en este momento.`
+        });
+      }
 
-        if (result.rows.length === 0) {
-          return res.status(404).json({
-            process: "info",
-            message: `El referido con dódigo de referencia ${referral_code} no tiene una solicitud activa en este momento.`
-          });
-        }
-
-        pool.query(
-          `SELECT 
-                com.comment as comment, 
-                TO_CHAR(
-                    com.created_at,
-                    'Mon FMDD "de" YYYY FMHH12:MI a.m.'
-                ) AS created_at_formatted, 
-                CASE
-                    WHEN com.is_system = TRUE THEN 'Sistema'
-                    ELSE (
-                        SELECT
-                            prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name
-                        FROM users usr
-                        INNER JOIN persons prs 
-                            ON usr.person_id = prs.id
-                        WHERE usr.id = com.user_id
-                        LIMIT 1
-                    )
-                END AS registered_by
-            FROM comments_referral_service_request com
-            WHERE com.referral_service_request_id = $1 ORDER BY com.created_at DESC`,
-          [result.rows[0].id],
-          (err, resultComments) => {
-            if (err) {
-              // RS-002: Error al obtener comentarios de solicitud de servicio
-              return res.status(500).json({
-                process: "error",
-                message: "Lo sentimos, no se pudo obtener la información, intentelo mas tarde (RS-002).",
-              });
-            }
-
-            return res.status(200).json({
-              process: "success",
-              message: "Información obtenida exitosamente.",
-              data: result.rows[0],
-              comments: resultComments.rows
+      pool.query(
+        `SELECT 
+              com.comment as comment, 
+              TO_CHAR(
+                  com.created_at,
+                  'Mon FMDD "de" YYYY FMHH12:MI a.m.'
+              ) AS created_at_formatted, 
+              CASE
+                  WHEN com.is_system = TRUE THEN 'Sistema'
+                  ELSE (
+                      SELECT
+                          prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name
+                      FROM users usr
+                      INNER JOIN persons prs 
+                          ON usr.person_id = prs.id
+                      WHERE usr.id = com.user_id
+                      LIMIT 1
+                  )
+              END AS registered_by
+          FROM comments_referral_service_request com
+          WHERE com.referral_service_request_id = $1 ORDER BY com.created_at DESC`,
+        [result.rows[0].id],
+        (err, resultComments) => {
+          if (err) {
+            // RS-002: Error al obtener comentarios de solicitud de servicio
+            return res.status(500).json({
+              process: "error",
+              message: "Lo sentimos, no se pudo obtener la información, intentelo mas tarde (RS-002).",
             });
           }
-        );
+
+          return res.status(200).json({
+            process: "success",
+            message: "Información obtenida exitosamente.",
+            data: result.rows[0],
+            comments: resultComments.rows
+          });
+        }
+      );
 
 
-      }
-    );
-
-  });
+    }
+  );
 };
 
 /*
@@ -389,27 +370,6 @@ export const calculateCommission = async (req, res) => {
       });
     }
 
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-      });
-    }
-
-    // ✅ Verificación de JWT sin callback
-    let decoded;
-    try {
-      decoded = jwt.verify(token, authConfig.secret);
-    } catch (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
     // ===============================
     // CONSULTA CONFIGURACIÓN COMISIÓN
     // ===============================
@@ -433,10 +393,13 @@ export const calculateCommission = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      logger.error("ReferralController.calculateCommission - No se encontró configuración de comisión para el código de referido:", {
+        referral_code: referral_code,
+      });
       return res.status(404).json({
         process: "info",
         message:
-          "Lo sentimos, no se pudo calcular la comisión, inténtelo más tarde. (RC-AC-006.01).",
+          "Lo sentimos, no se pudo calcular la comisión, inténtelo más tarde.",
       });
     }
 
@@ -493,10 +456,70 @@ export const calculateCommission = async (req, res) => {
     );
 
     if (resultInsert.rows.length === 0) {
+      logger.error("ReferralController.calculateCommission - No se pudo insertar la comisión:", {
+        referral_id: result.rows[0].refered_user_id,
+        referral_service_request_id: result.rows[0].referral_service_request_id,
+        offer_commission_config_id: offer_commission_config_id,
+        commission_type: result.rows[0].commission_type,
+        commission_value: result.rows[0].commission_value,
+        base_amount: result.rows[0].price,
+        commission_amount: commission_amount,
+        status: "AVAILABLE",
+        commission_payment_id: systemUUID,
+        created_by: systemUUID,
+      });
       return res.status(500).json({
         process: "error",
-        message:
-          "Lo sentimos, no se pudo calcular la comisión, inténtelo más tarde. (RC-AC-006.02).",
+        message: "Lo sentimos, no se pudo calcular la comisión, inténtelo más tarde.",
+      });
+    }
+
+    // ===============================
+    // NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
+    // ===============================
+
+    const getReferralName = await pool.query(`
+      SELECT prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name as referral_name
+      FROM users usr 
+      LEFT JOIN persons prs ON usr.person_id = prs.id
+      WHERE usr.id = $1`,
+      [result.rows[0].refered_user_id]
+    );
+
+    let referral_name = "";
+    if (getReferralName.rows.length === 0) {
+      logger.error("ReferralController.calculateCommission - No se pudo obtener el nombre del referido:", {
+        referral_id: result.rows[0].refered_user_id,
+      });
+    } else {
+      referral_name = getReferralName.rows[0].referral_name;
+    }
+
+    // Formateando el total de comisiones en pesos colombianos
+    const commission_amount_number = Number(commission_amount);
+    const commission_amount_formatted = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(commission_amount_number);
+
+    const emailAccountingArea = process.env.EMAILS_ACCOUNTING_AREA;
+    const notificationResult = await sendEmail(
+      emailAccountingArea,
+      "Notificación de provisión: Comisión por orden finalizada",
+      "000000",
+      "Equipo de contabilidad",
+      "[EMAIL_ADDRESS]",
+      "notification-payment-commision",
+      referral_name === '' ? `Referido ID: ${result.rows[0].refered_user_id}` : referral_name,
+      commission_amount_formatted
+    );
+
+    if (notificationResult.process === "error") {
+      logger.error("ReferralController.calculateCommission - No se pudo enviar la notificación:", {
+        referral_id: result.rows[0].refered_user_id,
+        notificationResult
       });
     }
 
@@ -513,21 +536,26 @@ export const calculateCommission = async (req, res) => {
     );
 
     if (resultUpdate.rows.length === 0) {
+      logger.error("ReferralController.calculateCommission - No se pudo actualizar la solicitud de servicio:", {
+        referral_service_request_id: result.rows[0].referral_service_request_id,
+        is_active: false,
+      });
       return res.status(500).json({
         process: "error",
-        message:
-          "Lo sentimos, se ha generado un error inesperado. (RC-AC-006.03).",
+        message: "Lo sentimos, se ha generado un error inesperado.",
       });
     }
 
-    // TODO: validar si aplica bono
     // ===============================
     // Validar si aplica bono
     // ===============================
     const bonusResult = await referralAppliesForBonusV2(resultInsert.rows[0].referral_id)
 
     if (bonusResult.process === 'error') {
-      console.log("ERROR GLOBAL referralAppliesForBonus: ", bonusResult);
+      logger.error("ReferralController.calculateCommission - No se pudo validar si aplica bono:", {
+        referral_id: result.rows[0].refered_user_id,
+        bonusResult
+      });
     }
 
     return res.status(200).json({
@@ -536,144 +564,126 @@ export const calculateCommission = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL calculateCommission: ", error);
-
+    logger.error("ReferralController.calculateCommission - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message:
-        "Lo sentimos, no se pudo calcular la comisión, inténtelo más tarde. (RC-AC-006).",
+        "Lo sentimos, no se pudo calcular la comisión, inténtelo más tarde.",
     });
   }
 };
 
 
-//TODO: Get comisiones disponibles para el usuario referido
 // RC-AC-007
 // Obteniendo comisiones disponibles para el usuario referido
 export const getCommissionAvailable = async (req, res) => {
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+  const userId = req.user.id;
+  try {
+
+    const validateHasReferredClients = await pool.query(
+      `SELECT * FROM referred_clients WHERE user_id = $1`,
+      [userId]
+    );
+
+    if (validateHasReferredClients.rows.length === 0) {
+      return res.status(404).json({
+        process: "info",
+        message: "No tienes comisiones disponibles, no cuentas con clientes referidos.",
+        data: {
+          total_commission: 0,
+          commissions: [],
+        },
+      });
+    }
+
+    const validateHasServiceRequestActive = await pool.query(
+      `SELECT * 
+        FROM referred_clients rfc 
+        LEFT JOIN referral_service_requests rsr ON rsr.assigned_referral_code = rfc.code
+        WHERE rfc.user_id = $1`,
+      [userId]
+    );
+
+    if (validateHasServiceRequestActive.rows.length === 0) {
+      return res.status(404).json({
+        process: "info",
+        message: "No tienes comisiones disponibles, no se han encontrado solicitudes de servicios.",
+        data: {
+          total_commission: 0,
+          commissions: [],
+        },
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT rco.commission_amount, 
+        '$ ' || REPLACE(
+              TO_CHAR(rco.commission_amount, 'FM999,999,999,990'),
+              ',', '.'
+        ) AS commission_amount_formmated,
+        -- rco.created_at, 
+        TO_CHAR(
+          rco.created_at,
+          'Mon FMDD "de" YYYY'
+        ) AS created_at_formatted,
+        TO_CHAR(
+          rco.created_at + INTERVAL '30 days',
+          'Mon FMDD "de" YYYY'
+        ) AS available_payment_date,
+        ofr."name" AS offer_name, ofr.description AS offer_description, 
+        opr."name" AS operator_name, 
+        prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name as client_name,
+        rsr.tracking_code
+        FROM users usr
+        JOIN referral_commissions rco ON rco.referral_id = usr.id
+        JOIN referral_service_requests rsr ON rsr.id = rco.referral_service_request_id
+        JOIN offers ofr ON ofr.id = rsr.offer_id 
+        JOIN operators opr ON opr.id = ofr.operator_id
+        JOIN referred_clients rcl ON rcl.code = rsr.assigned_referral_code
+        JOIN persons prs ON prs.id = rcl.person_id
+        WHERE usr.id = $1 AND status = 'AVAILABLE'`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({
+        process: "info",
+        message: "No tienes comisiones disponibles.",
+      });
+    }
+
+    let totalCommission = 0;
+    result.rows.forEach((commission) => {
+      totalCommission += parseFloat(commission.commission_amount);
+    });
+
+    // Formateando el total de comisiones en pesos colombianos
+    const totalCommissionNumber = Number(totalCommission);
+    const totalCommissionFormatted = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(totalCommissionNumber);
+
+    return res.status(200).json({
+      process: "success",
+      message: "Comisiones obtenidas exitosamente.",
+      data: {
+        total_commission: totalCommissionFormatted,
+        commissions: result.rows,
+      },
+    });
+  } catch (err) {
+    // RC-AC-007: Error al obtener la comisión
+    console.log('err', err);
+    return res.status(500).json({
+      process: "error",
+      message: "Lo sentimos, no se pudo obtener las comisiones disponibles, inténtelo más tarde. (RC-AC-007).",
     });
   }
 
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
-    try {
-
-      const validateHasReferredClients = await pool.query(
-        `SELECT * FROM referred_clients WHERE user_id = $1`,
-        [decoded.id]
-      );
-
-      if (validateHasReferredClients.rows.length === 0) {
-        return res.status(404).json({
-          process: "info",
-          message: "No tienes comisiones disponibles, no cuentas con clientes referidos.",
-          data: {
-            total_commission: 0,
-            commissions: [],
-          },
-        });
-      }
-
-      const validateHasServiceRequestActive = await pool.query(
-        `SELECT * 
-          FROM referred_clients rfc 
-          LEFT JOIN referral_service_requests rsr ON rsr.assigned_referral_code = rfc.code
-          WHERE rfc.user_id = $1`,
-        [decoded.id]
-      );
-
-      if (validateHasServiceRequestActive.rows.length === 0) {
-        return res.status(404).json({
-          process: "info",
-          message: "No tienes comisiones disponibles, no se han encontrado solicitudes de servicios.",
-          data: {
-            total_commission: 0,
-            commissions: [],
-          },
-        });
-      }
-
-      const result = await pool.query(
-        `SELECT rco.commission_amount, 
-          '$ ' || REPLACE(
-                TO_CHAR(rco.commission_amount, 'FM999,999,999,990'),
-                ',', '.'
-          ) AS commission_amount_formmated,
-          -- rco.created_at, 
-          TO_CHAR(
-            rco.created_at,
-            'Mon FMDD "de" YYYY'
-          ) AS created_at_formatted,
-          TO_CHAR(
-            rco.created_at + INTERVAL '30 days',
-            'Mon FMDD "de" YYYY'
-          ) AS available_payment_date,
-          ofr."name" AS offer_name, ofr.description AS offer_description, 
-          opr."name" AS operator_name, 
-          prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name as client_name,
-          rsr.tracking_code
-          FROM users usr
-          JOIN referral_commissions rco ON rco.referral_id = usr.id
-          JOIN referral_service_requests rsr ON rsr.id = rco.referral_service_request_id
-          JOIN offers ofr ON ofr.id = rsr.offer_id 
-          JOIN operators opr ON opr.id = ofr.operator_id
-          JOIN referred_clients rcl ON rcl.code = rsr.assigned_referral_code
-          JOIN persons prs ON prs.id = rcl.person_id
-          WHERE usr.id = $1 AND status = 'AVAILABLE'`,
-        [decoded.id]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(200).json({
-          process: "info",
-          message: "No tienes comisiones disponibles.",
-        });
-      }
-
-      let totalCommission = 0;
-      result.rows.forEach((commission) => {
-        totalCommission += parseFloat(commission.commission_amount);
-      });
-
-      // Formateando el total de comisiones en pesos colombianos
-      const totalCommissionNumber = Number(totalCommission);
-
-      const totalCommissionFormatted = new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-      }).format(totalCommissionNumber);
-
-      return res.status(200).json({
-        process: "success",
-        message: "Comisiones obtenidas exitosamente.",
-        data: {
-          total_commission: totalCommissionFormatted,
-          commissions: result.rows,
-        },
-      });
-    } catch (err) {
-      // RC-AC-007: Error al obtener la comisión
-      console.log('err', err);
-      return res.status(500).json({
-        process: "error",
-        message: "Lo sentimos, no se pudo obtener las comisiones disponibles, inténtelo más tarde. (RC-AC-007).",
-      });
-    }
-  });
 }
 
 // Get commissions/history
@@ -760,13 +770,7 @@ export const getCommissionsHistoryV1 = async (req, res) => {
 // Get commissions/history filtered by status name
 export const getCommissionsHistory = async (req, res) => {
   try {
-    const user = await getUserIdByToken(req);
-    if (user.process !== "success") {
-      return res.status(401).json({
-        process: user.process,
-        message: user.message,
-      });
-    }
+    const userId = req.user.id;
     const { status_name } = req.query;
 
     if (!status_name) {
@@ -828,10 +832,10 @@ export const getCommissionsHistory = async (req, res) => {
 
     if (isAll) {
       query = baseQuery;
-      params = [user.id];
+      params = [userId];
     } else {
       query = baseQuery + ` AND rco.status = $2`;
-      params = [user.id, STATUS_MAP[status_name]];
+      params = [userId, STATUS_MAP[status_name]];
     }
 
     pool.query(query, params, (err, result) => {
@@ -876,7 +880,7 @@ export const getCommissionsHistory = async (req, res) => {
 // Obteniendo total de comisiones pagadas/no pagadas para el usuario referido
 export const getTotalCommision = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     if (!token) {
       return res.status(401).json({
         process: "session-expired",
@@ -945,27 +949,7 @@ export const requestPaymentCommission = async (req, res) => {
         message: "Se requiere el código de seguimiento.",
       });
     }
-    const token = req.cookies.token;
-    if (!token) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-      });
-    }
-
-    // ✅ Verificación de JWT sin callback
-    let decoded;
-    try {
-      decoded = jwt.verify(token, authConfig.secret);
-    } catch (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
+    const userId = req.user.id;
     const result = await pool.query(
       `SELECT rcl.user_id as refered_user_id, rco.commission_amount as total_amount, rco.id as commission_id
         FROM referral_service_requests rsr 
@@ -1013,7 +997,7 @@ export const requestPaymentCommission = async (req, res) => {
     // TODO: actualizar estado de comisiones a REQUESTED_PAYMENT
     await pool.query(
       `UPDATE referral_commissions SET status = $1, updated_by = $2 , commission_payment_id = $3, requested_at = $4 WHERE id = $5`,
-      ["REQUESTED_PAYMENT", decoded.id, resultInsert.rows[0].id, new Date(), result.rows[0].commission_id]
+      ["REQUESTED_PAYMENT", userId, resultInsert.rows[0].id, new Date(), result.rows[0].commission_id]
     );
 
     return res.status(200).json({
@@ -1036,16 +1020,7 @@ export const requestPaymentCommission = async (req, res) => {
 // Referido consulta los bonos que tiene generado
 export const getReferralBonusesGenerated = async (req, res) => {
   try {
-    const token = req.cookies.token;
-    const validateUser = await validateUserIsActive(token);
-    if (validateUser.process !== "success") {
-      return res.status(401).json({
-        process: validateUser.process,
-        message: validateUser.message,
-      });
-    }
-
-    const referralUserID = validateUser.id;
+    const referralUserID = req.user.id;
 
     const result = await pool.query(
       `SELECT btr.id AS bonus_transaction_id, 
@@ -1141,9 +1116,10 @@ export const getReferralBonusesGenerated = async (req, res) => {
 // Referido solicita pago de bono(s)
 export const requestPaymentBonus = async (req, res) => {
   try {
-    const token = req.cookies.token;
-    const validateUser = await validateUserIsActive(token);
+    const userID = req.user.id;
+    const validateUser = await validateUserIsActiveByID(userID);
     if (validateUser.process !== "success") {
+      logger.error("ReferralController.requestPaymentBonus - Usuario no encontrado.", validateUser.message);
       return res.status(401).json({
         process: validateUser.process,
         message: validateUser.message,
@@ -1152,6 +1128,10 @@ export const requestPaymentBonus = async (req, res) => {
 
     const { bonusTransactionTokens } = req.body;
     if (!bonusTransactionTokens) {
+      logger.error("ReferralController.requestPaymentBonus - El token de la transacción es obligatorio.", '', {
+        user_id: userID,
+        bonusTransactionTokens
+      });
       return res.status(400).json({
         process: "error",
         message: "El token de la transacción es obligatorio.",
@@ -1163,18 +1143,14 @@ export const requestPaymentBonus = async (req, res) => {
       return decoded.bonusTransactionId;
     });
 
-    console.log(">>> bonusTransactionIds", bonusTransactionIds);
-
     let count = 0;
     bonusTransactionIds.forEach(async (bonusTransactionId) => {
-      const result = await pool.query(
+      await pool.query(
         `UPDATE bonus_transactions SET status = $1, requested_at = $2 WHERE id = $3`,
         ["REQUESTED_PAYMENT", new Date(), bonusTransactionId]
       );
       count++;
     });
-    console.log(">>> count", count);
-    console.log(">>> bonusTransactionIds.length", bonusTransactionIds.length);
 
     if (count === bonusTransactionIds.length) {
       return res.status(200).json({
@@ -1191,7 +1167,10 @@ export const requestPaymentBonus = async (req, res) => {
 
 
   } catch (error) {
-    console.log("ERROR GLOBAL updateBonusStatus: ", error);
+    logger.error("ReferralController.requestPaymentBonus - Error global.", error, {
+      user_id: userID,
+      bonusTransactionTokens
+    });
 
     return res.status(500).json({
       process: "error",
@@ -1205,14 +1184,7 @@ export const requestPaymentBonus = async (req, res) => {
 // Referido consulta el historial de sus bonos filtrado por estado
 export const getBonusesHistory = async (req, res) => {
   try {
-    const user = await getUserIdByToken(req);
-    if (user.process !== "success") {
-      return res.status(401).json({
-        process: user.process,
-        message: user.message,
-      });
-    }
-
+    const user = req.user;
     const { status_name } = req.query;
 
     if (!status_name) {
@@ -1229,14 +1201,6 @@ export const getBonusesHistory = async (req, res) => {
       'Pagado': 'PAID',
     };
 
-    const isAll = status_name.toLowerCase() === 'todos';
-
-    if (!isAll && !STATUS_MAP[status_name]) {
-      return res.status(400).json({
-        process: "error",
-        message: "El nombre del estado no es válido.", // Estados válidos: Todos, Generado, Solicitado, Pagado.
-      });
-    }
 
     const baseQuery = `
       SELECT btr.id AS bonus_transaction_id,
