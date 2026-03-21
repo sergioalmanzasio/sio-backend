@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
-import pool from './config/db.config.js';
 import routes from './routes/index.js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -14,11 +13,10 @@ app.set("trust proxy", 1);
 const allowedOrigins = [
  'http://localhost:3000',   // o el puerto que uses
  'http://localhost:5173',   // si usas Vite
- 'http://localhost:4200',   // si usas Angular
  'https://sio-mvp.vercel.app'
 ];
 
-app.use(cors({
+const corsOptions = {
  origin: (origin, callback) => {
   if (!origin || allowedOrigins.includes(origin)) {
    callback(null, true);
@@ -26,11 +24,13 @@ app.use(cors({
    callback(new Error('No permitido por CORS'));
   }
  },
- credentials: true,        // ⚠️ CRÍTICO si usas cookies
+ credentials: true,
  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+};
 
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -40,8 +40,6 @@ app.use(cookieParser());
 app.get('/', (req, res) => {
  res.json({ message: 'Bienvenido al backend de fp-003!!' });
 });
-
-
 
 //*** ROUTES
 app.use('/api/auth', routes.authRoutes);
@@ -61,6 +59,8 @@ app.use('/api/admin/dashboard', routes.dashboardRoutes);
 app.use('/api/coordinate-service/dashboard', routes.coordinateServiceDashboardRoutes);
 app.use('/api/bonus', routes.bonusRoutes);
 app.use('/api/admin/offers', routes.offersRoutes);
+app.use('/api/admin/operators', routes.operatorsRoutes);
+app.use('/api/admin/benefits', routes.benefitsRoutes);
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
 //*** Manejador de errores global simple (opcional, pero recomendado para producción)
@@ -68,8 +68,6 @@ app.use((err, req, res, next) => {
  console.error(err.stack);
  res.status(500).send('¡Algo salió mal en el servidor!');
 })
-
-
 
 const PORT = process.env.PORT || 4001;
 

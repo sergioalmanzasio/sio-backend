@@ -15,6 +15,8 @@ import dashboardRoutes from "./admin/dashboard.routes.js";
 import coordinateServiceDashboardRoutes from "./coordinate_service/dashboard.routes.js";
 import bonusRoutes from "./admin/bonus.routes.js";
 import offersRoutes from "./admin/offers.routes.js";
+import operatorsRoutes from "./admin/operators.routes.js";
+import benefitsRoutes from "./admin/benefits.routes.js";
 
 export default {
   signupRoutes,
@@ -33,5 +35,7 @@ export default {
   dashboardRoutes,
   coordinateServiceDashboardRoutes,
   bonusRoutes,
-  offersRoutes
+  offersRoutes,
+  operatorsRoutes,
+  benefitsRoutes
 };
