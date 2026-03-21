@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
+import { logger } from "../../utils/logger.js";
 
 // Get offers, authentication required
 export const getOffersRestricted = (req, res) => {
@@ -325,6 +326,97 @@ export const getOfferByOperatorIdAndServiceId = (req, res) => {
         message: "Ofertas obtenidas exitosamente.",
         count: result.rowCount,
         data: result.rows,
+      });
+    }
+  );
+};
+
+// Get compensation by operator id and category id, no authentication required
+export const getCompensationOffers = (req, res) => {
+  pool.query(
+    `SELECT 
+        opr.name AS operator_name,
+        cat.name AS service_type,
+        MAX(occ.commission_value) AS commission,
+        '$ ' || REPLACE(
+        TO_CHAR(MAX(occ.commission_value), 'FM999,999,999,990'),
+        ',', '.'
+      ) AS commission_value_forrmtaed
+    FROM offer_commission_config occ
+    LEFT JOIN offers off ON off.id = occ.offer_id
+    LEFT JOIN categories_offers cto ON cto.offer_id = off.id
+    LEFT JOIN categories cat ON cat.id = cto.category_id
+    LEFT JOIN operators opr ON opr.id = off.operator_id
+    GROUP BY opr.name, cat.name
+    ORDER BY opr.name, cat.name`,
+    (err, result) => {
+      if (err) {
+        console.log('OfferController.getCompensationByOperatorIdAndServiceId error:', err);
+        return res
+          .status(500)
+          .json({ message: "Error al consultar ofertas." });
+      }
+      // Structure JSON to response
+      /*
+        {
+          "process": "success",
+          "message": "Ofertas obtenidas exitosamente.",
+          "data": [
+            {
+              "operator_name": "Operator 1",
+              "services": [
+                {
+                  "service_type": "Service 1",
+                  "commission": 100,
+                  "commission_value_forrmtaed": "$ 100"
+                },
+                {
+                  "service_type": "Service 2",
+                  "commission": 200,
+                  "commission_value_forrmtaed": "$ 200"
+                }
+              ]
+            },
+            {
+              "operator_name": "Operator 2",
+              "services": [
+                {
+                  "service_type": "Service 2",
+                  "commission": 200,
+                  "commission_value_forrmtaed": "$ 200"
+                }
+              ]
+            }
+          ]
+        }
+      */
+      const data = result.rows.reduce((acc, row) => {
+        const operator = acc.find((op) => op.operator_name === row.operator_name);
+        if (!operator) {
+          acc.push({
+            operator_name: row.operator_name,
+            services: [
+              {
+                service_type: row.service_type,
+                commission: row.commission,
+                commission_value_forrmtaed: row.commission_value_forrmtaed,
+              },
+            ],
+          });
+        } else {
+          operator.services.push({
+            service_type: row.service_type,
+            commission: row.commission,
+            commission_value_forrmtaed: row.commission_value_forrmtaed,
+          });
+        }
+        return acc;
+      }, []);
+      res.json({
+        process: "success",
+        message: "Ofertas obtenidas exitosamente.",
+        count: result.rowCount,
+        data: data,
       });
     }
   );
