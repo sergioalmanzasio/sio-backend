@@ -1,8 +1,11 @@
 import jwt from "jsonwebtoken";
 import pool from "../../config/db.config.js";
 import authConfig from "../../config/auth.config.js";
-import { sendEmail, transversalUUID, getUserSystemEnv } from "../../utils/shared.js";
+import { sendEmail, sendEmailV2, transversalUUID, getUserSystemEnv } from "../../utils/shared.js";
 import { getUserIdByEmail, getServiceRequestStateIDByName } from "../common/common.controller.js";
+import { logger } from "../../utils/logger.js";
+import { sendNotification } from "../../services/notification.service.js";
+import { NotificationChannels } from "../../modules/notifications/notification.types.js";
 
 
 // Add service_request
@@ -534,7 +537,6 @@ export const getServiceRequestByServiceCoordinator = (req, res) => {
 
 // Add referral service request
 export const addReferralServiceRequest = async (req, res) => {
-  console.log
   const { assigned_referral_code, email_service_coordinator, offer_id, filing_number } = req.body;
   let aux_filing_number = filing_number;
   if (filing_number === "" || filing_number === null || filing_number === undefined) {
@@ -546,97 +548,120 @@ export const addReferralServiceRequest = async (req, res) => {
       message: "Todos los campos son obligatorios.",
     });
   }
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+
+  const validateHasServiceRequestActive = await pool.query(
+    `SELECT * FROM referral_service_requests WHERE assigned_referral_code = $1 
+      AND service_request_state_id = (SELECT id FROM service_request_states WHERE status = 'IN_PROGRESS')`,
+    [assigned_referral_code]
+  );
+  if (validateHasServiceRequestActive.rows.length > 0) {
+    return res.status(400).json({
+      process: "info",
+      message: "Ya existe una solicitud de servicio activa con este código de referido.",
     });
   }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
 
-    const validateHasServiceRequestActive = await pool.query(
-      `SELECT * FROM referral_service_requests WHERE assigned_referral_code = $1 AND service_request_state_id = (SELECT id FROM service_request_states WHERE status = 'IN_PROGRESS')`,
-      [assigned_referral_code]
-    );
-    if (validateHasServiceRequestActive.rows.length > 0) {
-      return res.status(400).json({
-        process: "info",
-        message: "Ya existe una solicitud de servicio activa con este código de referido.",
-      });
-    }
-
-    const userExist = await getUserIdByEmail(email_service_coordinator);
-    if (userExist.process === "error") {
-      // US-001: Error al obtener usuario por correo
-      return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo llevar a cabo la solicitud de servicio (US-001)." });
-    }
-    pool.query(
-      `INSERT INTO referral_service_requests (assigned_referral_code, coordinate_service_user, offer_id, service_request_state_id, created_by, filing_number) VALUES ($1, $2, $3, (SELECT id FROM service_request_states WHERE status = 'IN_PROGRESS'), $4, $5) RETURNING *`,
-      [assigned_referral_code, userExist.id, offer_id, userExist.id, aux_filing_number],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            process: "error",
-            message: "Error al agregar solicitud de servicio.",
-          });
-        }
-
-        // TODO: Add comment to service request
-        const comment = `Solicitud de servicio generada.`;
-        const userSystemID = await getUserIdByEmail(getUserSystemEnv());
-        const commentResult = await insertCommentToServiceRequest(result.rows[0].id, comment, userSystemID.id, true);
-        if (commentResult.process === "error") {
-          console.log('Error al agregar comentario:', commentResult);
-        }
-
-        return res.status(200).json({
-          process: "success",
-          message: "Solicitud de servicio agregada exitosamente.",
-          data: result.rows,
+  const userExist = await getUserIdByEmail(email_service_coordinator);
+  if (userExist.process === "error") {
+    return res.status(400).json({
+      process: "info",
+      message: "Lo sentimos, no se pudo llevar a cabo la solicitud de servicio, intente nuevamente."
+    });
+  }
+  pool.query(
+    `INSERT INTO referral_service_requests (assigned_referral_code, coordinate_service_user, offer_id, service_request_state_id, created_by, filing_number) VALUES ($1, $2, $3, (SELECT id FROM service_request_states WHERE status = 'IN_PROGRESS'), $4, $5) RETURNING *`,
+    [assigned_referral_code, userExist.id, offer_id, userExist.id, aux_filing_number],
+    async (err, result) => {
+      if (err) {
+        return res.status(500).json({
+          process: "error",
+          message: "Error al agregar solicitud de servicio.",
         });
       }
-    );
-  });
+
+      // Add comment to service request
+      const comment = `Solicitud de servicio generada.`;
+      const userSystemID = await getUserIdByEmail(getUserSystemEnv());
+      const commentResult = await insertCommentToServiceRequest(result.rows[0].id, comment, userSystemID.id, true);
+      if (commentResult.process === "error") {
+        logger.error("RequestController.addReferralServiceRequest - Error al agregar comentario automatizado:", {
+          error: commentResult.message,
+          service_request_id: result.rows[0].id,
+          comment,
+          userSystemID: userSystemID.id,
+          is_system: true
+        });
+      }
+
+      const dataPersonReferral = await pool.query(
+        `SELECT  
+          prsRef.name || ' ' || COALESCE(prsRef.middle_name, '') || ' ' || prsRef.last_name AS referral_name, 
+          prsCli.name || ' ' || COALESCE(prsCli.middle_name, '') || ' ' || prsCli.last_name AS client_name,
+          usr.username AS referral_email, rsr.tracking_code AS order_number, prsCli.email AS client_email  
+          FROM referral_service_requests rsr
+            LEFT JOIN referred_clients rfc ON rsr.assigned_referral_code = rfc.code
+            LEFT JOIN users usr ON usr.id = rfc.user_id
+            LEFT JOIN persons prsRef ON prsRef.id = usr.person_id
+            LEFT JOIN persons prsCli ON prsCli.id = rfc.person_id
+          WHERE rsr.assigned_referral_code = $1
+          AND service_request_state_id = (SELECT id FROM service_request_states WHERE status = 'IN_PROGRESS')`,
+        [assigned_referral_code]
+      );
+
+      if (dataPersonReferral.rows.length === 0) {
+        logger.error("RequestController.addReferralServiceRequest - Error al obtener datos de la persona para envío de correo electrónico:", {
+          error: "No se encontraron datos de la persona.",
+          assigned_referral_code,
+          userExist: userExist.id,
+          offer_id,
+          aux_filing_number
+        });
+      }
+
+
+      // sendEmailV2('rianveal@gmail.com', "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
+      sendEmailV2(dataPersonReferral.rows[0].referral_email, "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
+        referral_name: dataPersonReferral.rows[0].referral_name,
+        client_name: dataPersonReferral.rows[0].client_name,
+        order_number: dataPersonReferral.rows[0].order_number,
+      });
+
+      // TODO: Enviar correo electrónico al cliente, genearar template
+      // sendEmailV2(dataPersonReferral.rows[0].client_email, "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
+      //   referral_name: dataPersonReferral.rows[0].referral_name,
+      //   client_name: dataPersonReferral.rows[0].client_name,
+      //   order_number: dataPersonReferral.rows[0].order_number,
+      // });
+
+
+      // const smsResult = await sendNotification({
+      //   channel: NotificationChannels.SMS,
+      //   to: "+573007858634",
+      //   subject: `SIO|Colombia(TEST), se ha agregado una solicitud de servicio con el código de servicio ${assigned_referral_code}.`,
+      //   message: `SIO|Colombia, se ha agregado una solicitud de servicio con el código de servicio ${assigned_referral_code}.`,
+      //   metadata: {
+      //     userId: userExist.id,
+      //     type: "referral-service-request",
+      //   },
+      // });
+      // console.log("SMS Result:", smsResult);
+
+      return res.status(200).json({
+        process: "success",
+        message: "La solicitud de servicio ha sido generada.",
+        data: result.rows,
+      });
+    }
+  );
+
 };
 
 // Get referral service requests by coordiante service email
 // TODO: Revisar si es posible implementar el decoded.id
 export const getReferralServiceRequestsByUser = (req, res) => {
-
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-    });
-  }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
-    // const userExist = await getUserIdByEmail(email);
-    // if (userExist.process === "error") {
-    //   // US-001: Error al obtener usuario por correo
-    //   return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo llevar a cabo la solicitud de servicio (US-001)." });
-    // }
-
-    pool.query(
-      `SELECT rsr.id, rsr.assigned_referral_code referal_code, rsr.tracking_code AS code,
+  const userID = req.user.id;
+  pool.query(
+    `SELECT rsr.id, rsr.assigned_referral_code referal_code, rsr.tracking_code AS code,
       rsr.offer_id, ofr.name offer_name, ofr.description offer_description, ofr.price offer_price, 
       rsr.filing_number,  
       sst.description state, rc.person_id,
@@ -650,43 +675,44 @@ export const getReferralServiceRequestsByUser = (req, res) => {
         JOIN offers ofr ON rsr.offer_id = ofr.id
         WHERE rsr.coordinate_service_user = $1
         AND rsr.is_active = TRUE`,
-      [decoded.id],
-      (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            process: "error",
-            message: "Error al obtener solicitud de servicio.",
-          });
-        }
-        const data = result.rows.map((row) => {
-          return {
-            service_request: {
-              state: row.state,
-              filing_number: row.filing_number,
-              id: row.id,
-            },
-            client: {
-              name: row.client_name,
-              tracking_code: row.code,
-              referral_code: row.referal_code,
-            },
-            offer: {
-              id: row.offer_id,
-              name: row.offer_name,
-              description: row.offer_description,
-              price: row.offer_price,
-            },
-          };
-        });
-        return res.status(200).json({
-          process: "success",
-          message: "Solicitud de servicio obtenida exitosamente.",
-          count: result.rowCount,
-          data,
+    [userID],
+    async (err, result) => {
+      if (err) {
+        return res.status(500).json({
+          process: "error",
+          message: "Error al obtener solicitud de servicio.",
         });
       }
-    );
-  });
+
+      const data = result.rows.map((row) => {
+        return {
+          service_request: {
+            state: row.state,
+            filing_number: row.filing_number,
+            id: row.id,
+          },
+          client: {
+            name: row.client_name,
+            tracking_code: row.code,
+            referral_code: row.referal_code,
+          },
+          offer: {
+            id: row.offer_id,
+            name: row.offer_name,
+            description: row.offer_description,
+            price: row.offer_price,
+          },
+        };
+      });
+      return res.status(200).json({
+        process: "success",
+        message: "Solicitud de servicio obtenida exitosamente.",
+        count: result.rowCount,
+        data,
+      });
+    }
+  );
+
 };
 
 // Helper function to insert comment (reusable)
@@ -707,7 +733,7 @@ const insertCommentToServiceRequest = async (service_request_id, comment, user_i
 };
 
 // Add comment to service request
-export const addCommentToServiceRequest = (req, res) => {
+export const addCommentToServiceRequest = async (req, res) => {
   const { service_request_id, comment, email } = req.body;
   if (!service_request_id || !comment || !email) {
     return res.status(400).json({
@@ -715,44 +741,26 @@ export const addCommentToServiceRequest = (req, res) => {
       message: "Todos los campos son obligatorios.",
     });
   }
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+  const userID = req.user.id;
+  try {
+    const result = await insertCommentToServiceRequest(service_request_id, comment, userID);
+    return res.status(200).json({
+      process: "success",
+      message: "Comentario agregado exitosamente.",
+      data: result.rows,
+    });
+  } catch (error) {
+    logger.error("RequestController.addCommentToServiceRequest - Error al agregar comentario a solicitud de servicio:", {
+      error,
+      service_request_id,
+      comment,
+      user_id: req.user.id,
+    });
+    return res.status(500).json({
+      process: "error",
+      message: "Error al agregar comentario a solicitud de servicio.",
     });
   }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
-    const userExist = await getUserIdByEmail(email);
-    if (userExist.process === "error") {
-      // US-001: Error al obtener usuario por correo
-      return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo llevar a cabo la solicitud de servicio (US-001)." });
-    }
-
-    try {
-      const result = await insertCommentToServiceRequest(service_request_id, comment, userExist.id);
-      return res.status(200).json({
-        process: "success",
-        message: "Comentario agregado exitosamente.",
-        data: result.rows,
-      });
-    } catch (error) {
-      console.log('Error', error);
-      return res.status(500).json({
-        process: "error",
-        message: "Error al agregar comentario a solicitud de servicio.",
-      });
-    }
-  });
 };
 
 // Get comments and user by service_request_id
@@ -765,25 +773,8 @@ export const getCommentsAndUserByServiceRequestID = (req, res) => {
     });
   }
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-    });
-  }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
-    pool.query(
-      `SELECT 
+  pool.query(
+    `SELECT 
           com.comment as comment, 
           TO_CHAR(
               com.created_at,
@@ -803,27 +794,29 @@ export const getCommentsAndUserByServiceRequestID = (req, res) => {
           END AS registered_by
       FROM comments_referral_service_request com
       WHERE com.referral_service_request_id = $1`,
-      [service_request_id],
-      (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            process: "error",
-            message: "Error al obtener comentarios de solicitud de servicio.",
-          });
-        }
-        return res.status(200).json({
-          process: "success",
-          message: "Comentarios obtenidos exitosamente.",
-          data: result.rows,
+    [service_request_id],
+    (err, result) => {
+      if (err) {
+        logger.error("RequestController.getCommentsAndUserByServiceRequestID - Error al obtener comentarios de solicitud de servicio:", {
+          error: err,
+          service_request_id,
+        });
+        return res.status(500).json({
+          process: "error",
+          message: "Error al obtener comentarios de solicitud de servicio.",
         });
       }
-    );
-
-  });
+      return res.status(200).json({
+        process: "success",
+        message: "Comentarios obtenidos exitosamente.",
+        data: result.rows,
+      });
+    }
+  );
 };
 
 // update state and add comment to service request
-export const updateStateAndAddCommentToServiceRequest = (req, res) => {
+export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
   const { service_request_id, state, comment, email } = req.body;
   if (!service_request_id || !state || !comment || !email) {
     return res.status(400).json({
@@ -832,59 +825,99 @@ export const updateStateAndAddCommentToServiceRequest = (req, res) => {
     });
   };
 
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
+  const userID = req.user.id;
+  const stateID = await getServiceRequestStateIDByName(state);
+  if (stateID.process === "error") {
+    logger.error("RequestController.updateStateAndAddCommentToServiceRequest - Error al obtener ID de estado de solicitud de servicio a través del nombre:", {
+      error_message: stateID.message,
+      service_request_id,
+      state,
+      user_id: userID,
+    });
+    return res.status(400).json({
+      process: "error",
+      message: "Lo sentimos, la actualización del estado de la solicitud de servicio no se pudo llevar a cabo, intente nuevamente."
     });
   }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
 
-    const userExist = await getUserIdByEmail(email);
-    if (userExist.process === "error") {
-      // US-001: Error al obtener usuario por correo
-      return res.status(400).json({ process: "error", message: "Lo sentimos, la actualización del estado de la solicitud de servicio no se pudo llevar a cabo (US-001)." });
-    }
-
-    const stateID = await getServiceRequestStateIDByName(state);
-    if (stateID.process === "error") {
-      // US-002: Error al obtener ID de estado de solicitud de servicio a través del nombre
-      return res.status(400).json({ process: "error", message: "Lo sentimos, la actualización del estado de la solicitud de servicio no se pudo llevar a cabo (US-002)." });
-    }
-
-    pool.query(
-      `UPDATE referral_service_requests SET service_request_state_id = $1, updated_by = $2 WHERE id = $3 RETURNING *`,
-      [stateID.id, userExist.id, service_request_id],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            process: "error",
-            message: "Error al actualizar estado de solicitud de servicio.",
-          });
-        }
-
-        const commentResult = await insertCommentToServiceRequest(service_request_id, comment, userExist.id);
-        if (commentResult.process === "error") {
-          // US-001: Error al obtener usuario por correo
-          return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo llevar a cabo el registro del comentario (US-002)." });
-        }
-        return res.status(200).json({
-          process: "success",
-          message: "Estado de solicitud de servicio actualizado exitosamente.",
-          data: result.rows,
+  pool.query(
+    `UPDATE referral_service_requests SET service_request_state_id = $1, updated_by = $2 WHERE id = $3 RETURNING *`,
+    [stateID.id, userID, service_request_id],
+    async (err, result) => {
+      if (err) {
+        logger.error("RequestController.updateStateAndAddCommentToServiceRequest - Error al actualizar estado de solicitud de servicio:", {
+          error: err,
+          service_request_id,
+          state,
+          user_id: userID,
+        });
+        return res.status(500).json({
+          process: "error",
+          message: "Error al actualizar estado de solicitud de servicio.",
         });
       }
-    );
-  });
+
+      const commentResult = await insertCommentToServiceRequest(service_request_id, comment, userID);
+      if (commentResult.process === "error") {
+        logger.error("RequestController.updateStateAndAddCommentToServiceRequest - Error al agregar comentario a solicitud de servicio:", {
+          error: commentResult.error,
+          service_request_id,
+          comment,
+          user_id: userID,
+        });
+        return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo llevar a cabo el registro del comentario (US-002)." });
+      }
+
+      const dataReferral = await pool.query(
+        `SELECT  
+          prsRef.name || ' ' || COALESCE(prsRef.middle_name, '') || ' ' || prsRef.last_name AS referral_name, 
+          usr.username AS referral_email  
+          FROM referral_service_requests rsr
+            LEFT JOIN referred_clients rfc ON rsr.assigned_referral_code = rfc.code
+            LEFT JOIN users usr ON usr.id = rfc.user_id
+            LEFT JOIN persons prsRef ON prsRef.id = usr.person_id
+          WHERE rsr.id = $1`,
+        [result.rows[0].id]
+      );
+
+      if (dataReferral.rows.length === 0) {
+        logger.error("RequestController.updateStateAndAddCommentToServiceRequest - Error al obtener datos del referido para envío de correo electrónico :", {
+          error: "No se encontraron datos del referido.",
+          service_request_id: result.rows[0].id,
+        });
+      }
+
+      // Send email to referral
+      const email = 'rianveal@gmail.com';
+      // dataReferral.rows[0].referral_email
+      sendEmailV2(email, "Actualización: Tu orden de servicio 📝", "notification-update-request", {
+        referral_name: dataReferral.rows[0].referral_name,
+        order_number: result.rows[0].tracking_code,
+        new_status: stateID.description,
+      });
+
+
+      const smsResult = await sendNotification({
+        channel: NotificationChannels.SMS,
+        to: "+573007858634",
+        subject: `SIO|Colombia(TEST), la orden de servicio ${result.rows[0].tracking_code} cambió a estado ${stateID.description}.`,
+        message: `SIO|Colombia, ${stateID.description.toLowerCase() === 'terminada'
+          ? `La orden de servicio ${result.rows[0].tracking_code} ha sido finalizada con éxito, gracias por tu preferencia.`
+          : `La orden de servicio ${result.rows[0].tracking_code} ha cambiado al estado ${stateID.description} y sigue en proceso.`}`,
+        metadata: {
+          userId: userID,
+          type: "referral-service-request",
+        },
+      });
+      console.log("SMS Result:", smsResult);
+
+      return res.status(200).json({
+        process: "success",
+        message: "La actualización del estado de la solicitud de servicio se realizó exitosamente.",
+        data: result.rows,
+      });
+    }
+  );
 
 };
 
@@ -898,47 +931,38 @@ export const updateOnlyFillingNumberByTrackingCode = (req, res) => {
       message: "Todos los campos son obligatorios.",
     });
   }
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({
-      process: "session-expired",
-      message:
-        "Por seguridad, tu sesión ha caducado. Accede nuevamente a SIO para seguir navegando.",
-    });
-  }
-  jwt.verify(token, authConfig.secret, async (err, decoded) => {
-    if (err) {
-      return res.status(401).json({
-        process: "session-expired",
-        message:
-          "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
-      });
-    }
-
-    pool.query(
-      `UPDATE referral_service_requests SET filing_number = $1, updated_by = $2 WHERE tracking_code = $3 and is_active = true RETURNING *`,
-      [filling_number, decoded.id, tracking_code],
-      async (err, result) => {
-        if (err) {
-          return res.status(500).json({
-            process: "error",
-            message: "Error al actualizar número de radicado (RQC-AC-013.01).",
-          });
-        }
-
-        const commentResult = await insertCommentToServiceRequest(result.rows[0].id, `Número de radicado actualizado: ${filling_number}`, decoded.id);
-        if (commentResult.process === "error") {
-          // US-001: Error al obtener usuario por correo
-          return res.status(400).json({ process: "error", message: "Lo sentimos, no se pudo llevar a cabo el registro del comentario (RQC-AC-013.02)." });
-        }
-        return res.status(200).json({
-          process: "success",
-          message: "Número de radicado actualizado exitosamente.",
-          data: result.rows,
+  const userID = req.user.id;
+  pool.query(
+    `UPDATE referral_service_requests SET filing_number = $1, updated_by = $2 WHERE tracking_code = $3 and is_active = true RETURNING *`,
+    [filling_number, userID, tracking_code],
+    async (err, result) => {
+      if (err) {
+        return res.status(500).json({
+          process: "error",
+          message: "Error al actualizar número de radicado (RQC-AC-013.01).",
         });
       }
-    );
-  });
+
+      const commentResult = await insertCommentToServiceRequest(result.rows[0].id, `Número de radicado actualizado: ${filling_number}`, userID);
+      if (commentResult.process === "error") {
+        logger.error("RequestController.updateOnlyFillingNumberByTrackingCode - Error al agregar un comentario a la solicitud de servicio que se le actualizó el número de radicado:", {
+          error: commentResult.error,
+          service_request_id: result.rows[0].id,
+          comment: `Número de radicado actualizado: ${filling_number}`,
+          user_id: userID,
+        });
+        return res.status(400).json({
+          process: "error",
+          message: "Lo sentimos, no se pudo llevar a cabo el registro del comentario (RQC-AC-013.02)."
+        });
+      }
+      return res.status(200).json({
+        process: "success",
+        message: "Número de radicado actualizado exitosamente.",
+        data: result.rows,
+      });
+    }
+  );
 };
 
 
