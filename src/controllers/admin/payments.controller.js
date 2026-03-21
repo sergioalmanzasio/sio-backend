@@ -2,11 +2,12 @@ import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
 import { userWithPermissions } from "../common/common.controller.js";
+import { logger } from "../../utils/logger.js";
 
 // PCO-AC-001
 export const getPaymentsRequeriments = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -56,6 +57,10 @@ export const getPaymentsRequeriments = async (req, res) => {
       ORDER BY prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name`,
       (err, result) => {
         if (err) {
+          logger.error("Payments.Controller.getPaymentsRequeriments Error al obtener los pagos requeridos", err, {
+            userID: validateUserWithPermissions.id,
+            status: "REQUESTED_PAYMENT"
+          });
           return res.status(500).json({
             process: "error",
             message:
@@ -84,7 +89,9 @@ export const getPaymentsRequeriments = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getPaymentsRequeriments: ", error);
+    logger.error("Payments.Controller.getPaymentsRequeriments Error global", error, {
+      status: "REQUESTED_PAYMENT"
+    });
 
     return res.status(500).json({
       process: "error",
@@ -98,7 +105,7 @@ export const getPaymentsRequeriments = async (req, res) => {
 // PCO-AC-002
 export const updatePaymentStatus = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -123,6 +130,7 @@ export const updatePaymentStatus = async (req, res) => {
       [referralCommissionId, new Date(), new Date()],
       (err, result) => {
         if (err) {
+          logger.error("Payments.Controller.updatePaymentStatus Error al actualizar el estado del pago", err);
           return res.status(500).json({
             process: "error",
             message: "Lo sentimos, no se pudo actualizar el estado del pago, inténtelo más tarde. (PCO-AC-002).",
@@ -134,19 +142,13 @@ export const updatePaymentStatus = async (req, res) => {
           [referralCommissionId],
           (err, result) => {
             if (err) {
-              console.log("ERROR GLOBAL updatePaymentStatus: ", err);
-              console.log(`(
-                AC: updatePaymentStatus) Data to update: \n
-                commission_payment_id: ${commissionPaymentId}\n
-                referral_commission_id: ${referralCommissionId}\n
-                status: PAID\n
-                updated_at: ${new Date()}\n
-                reason: Pago de comisión por venta terminada (instalada).\n
-                `);
-              // return res.status(500).json({
-              //   process: "error",
-              //   message: "Lo sentimos, no se pudo actualizar el estado del pago, inténtelo más tarde. (PCO-AC-002).",
-              // });
+              logger.error("Payments.Controller.updatePaymentStatus Error al obtener el id de la comisión", err, {
+                referral_commission_id: referralCommissionId,
+                userID: validateUserWithPermissions.id,
+                status: "PAID",
+                updated_at: new Date(),
+                reason: "Pago de comisión por venta terminada (instalada).",
+              });
             }
 
             const commissionPaymentId = result.rows[0].commission_payment_id;
@@ -156,6 +158,14 @@ export const updatePaymentStatus = async (req, res) => {
               [commissionPaymentId, new Date(), 'Pago de comisión por venta terminada (instalada).', validateUserWithPermissions.id],
               (err, result) => {
                 if (err) {
+                  logger.error("Payments.Controller.updatePaymentStatus Error al actualizar el estado del pago de comisión", err, {
+                    commission_payment_id: commissionPaymentId,
+                    referral_commission_id: referralCommissionId,
+                    userID: validateUserWithPermissions.id,
+                    status: "PAID",
+                    updated_at: new Date(),
+                    reason: "Pago de comisión por venta terminada (instalada).",
+                  });
                   return res.status(500).json({
                     process: "error",
                     message: "Lo sentimos, no se pudo actualizar el estado del pago, inténtelo más tarde. (PCO-AC-002).",
@@ -166,7 +176,7 @@ export const updatePaymentStatus = async (req, res) => {
           }
         );
 
-        // TODO: Enviar correo electrónico al usuario informando el pago de la comisión
+        // TODO: Enviar correo electrónico/mensaje de texto al usuario informando el pago de la comisión
         return res.status(200).json({
           process: "success",
           message: "Estado del pago actualizado exitosamente.",
@@ -175,7 +185,9 @@ export const updatePaymentStatus = async (req, res) => {
     );
 
   } catch (error) {
-    console.log("ERROR GLOBAL updatePaymentStatus: ", error);
+    logger.error("Payments.Controller.updatePaymentStatus Error global", error, {
+      status: "PAID"
+    });
 
     return res.status(500).json({
       process: "error",
@@ -189,7 +201,7 @@ export const updatePaymentStatus = async (req, res) => {
 // Get paid commissions with base commission_payments
 export const getPaidCommissions = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -228,6 +240,10 @@ export const getPaidCommissions = async (req, res) => {
       WHERE rco.status = 'PAID'`,
       (err, result) => {
         if (err) {
+          logger.error("Payments.Controller.getPaidCommissions Error al obtener los pagos requeridos", err, {
+            userID: validateUserWithPermissions.id,
+            status: "PAID"
+          });
           return res.status(500).json({
             process: "error",
             message: "Lo sentimos, no se pudo obtener los pagos requeridos, inténtelo más tarde. (PCO-AC-003).",
@@ -251,7 +267,9 @@ export const getPaidCommissions = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getPaidCommissions: ", error);
+    logger.error("Payments.Controller.getPaidCommissions Error global", error, {
+      status: "PAID"
+    });
 
     return res.status(500).json({
       process: "error",
@@ -265,7 +283,7 @@ export const getPaidCommissions = async (req, res) => {
 // Get paid bonuses with base bonus_payments
 export const getPaidBonuses = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    const token = req.token;
     const validateUserWithPermissions = await userWithPermissions(token);
     if (validateUserWithPermissions.process !== "success") {
       return res.status(401).json({
@@ -297,6 +315,10 @@ export const getPaidBonuses = async (req, res) => {
       WHERE btr.status = 'PAID'`,
       (err, result) => {
         if (err) {
+          logger.error("Payments.Controller.getPaidBonuses Error al obtener los pagos requeridos", err, {
+            userID: validateUserWithPermissions.id,
+            status: "PAID"
+          });
           return res.status(500).json({
             process: "error",
             message: "Lo sentimos, no se pudo obtener los pagos requeridos, inténtelo más tarde. (PCO-AC-004).",
@@ -320,7 +342,9 @@ export const getPaidBonuses = async (req, res) => {
       }
     );
   } catch (error) {
-    console.log("ERROR GLOBAL getPaidBonuses: ", error);
+    logger.error("Payments.Controller.getPaidBonuses Error global", error, {
+      status: "PAID"
+    });
 
     return res.status(500).json({
       process: "error",
