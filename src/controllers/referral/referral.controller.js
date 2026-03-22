@@ -25,8 +25,6 @@ export const createReferredExistCustomer = async (req, res) => {
     return res.status(400).json({ process: "error", message: "Asociación de cliente no pudo ser realizada, inténte más tarde." });
   }
 
-
-  // Validando que no exista la relación entre el usuario y la persona
   pool.query(
     "SELECT * FROM referred_clients WHERE user_id = $1 AND person_id = $2",
     [userExist.id, personExist.id],
@@ -62,9 +60,7 @@ export const createReferredExistCustomer = async (req, res) => {
             userExist.id],
             (err, result) => {
               if (err) {
-                // AR-001: Error al crear cliente referido
-                // return res.status(500).json({ process: "error", message: "Lo sentimos, no se pudo crear el cliente referido (AR-001)." });
-                console.log('ERROR AR-001: No se pudo asociar el cliente referido con un Coordinador de servicios (MKT), RC-AC-001: ', err);
+                logger.error('ReferralController.createReferredExistCustomer - Error al asociar cliente referido: ', err);
               }
               return res.status(200).json({ process: "success", message: "Cliente referido creado exitosamente." });
             }
@@ -1201,6 +1197,7 @@ export const getBonusesHistory = async (req, res) => {
       'Pagado': 'PAID',
     };
 
+    const isAll = status_name.toLowerCase() === 'todas';
 
     const baseQuery = `
       SELECT btr.id AS bonus_transaction_id,
