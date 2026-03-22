@@ -232,8 +232,6 @@ export const signUp = async (req, res) => {
               });
             }
           );
-
-
         }
       );
     }
@@ -359,6 +357,81 @@ export const signUpVerifyCode = async (req, res) => {
   return res
     .status(200)
     .json({ message: "Código verificado exitosamente." });
+
+};
+
+// SignUp | Resend code
+export const signUpResendCode = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res
+      .status(400)
+      .json({ message: "Todos los campos son obligatorios." });
+  }
+
+  const validateCodeAndExpires = await pool.query(
+    "SELECT * FROM signup_code WHERE email = $1 AND is_used = FALSE",
+    [email]
+  );
+
+  if (validateCodeAndExpires.rows.length > 0) {
+    const updateCodeAndExpires = await pool.query(
+      "UPDATE signup_code SET is_used = TRUE WHERE id = $1 RETURNING *",
+      [validateCodeAndExpires.rows[0].id]
+    );
+    if (updateCodeAndExpires.rows.length === 0) {
+      logger.error(`SignupController.signUpRefreshCode: Error al actualizar código.`, {
+        email,
+        signup_code_id: validateCodeAndExpires.rows[0].id,
+      });
+      return res
+        .status(500)
+        .json({
+          process: "error",
+          message: "Lo sentimos, no se pudo obtener el nuevo código de verificación."
+        });
+    }
+  }
+
+  const code = generateVerificationCode();
+  pool.query(
+    "INSERT INTO signup_code (email, code) VALUES ($1, $2)",
+    [email, code],
+    async (err, result) => {
+      if (err) {
+        logger.error('SignupController.signUpGenerateCode - Error al generar código: ', err);
+        return res
+          .status(500)
+          .json({
+            process: "error",
+            message: "Error al generar código. intentelo de nuevo."
+          });
+      }
+
+      const resultSendMail = await sendEmailV2(email, 'SIO Colombia - Código de verificación', 'user-registration',
+        {
+          email: email,
+          code: code,
+        });
+      if (!resultSendMail) {
+        logger.error(`SignupController.signUpGenerateCode: Error al enviar correo de verificación.`, {
+          email,
+          code: code,
+        });
+        return res.status(500).json({
+          process: "info",
+          message: 'Lo sentimos, no se pudo enviar el correo de verificación, por favor intente nuevamente.'
+        });
+      }
+
+      return res
+        .status(200)
+        .json({
+          process: "success",
+          message: `Código generado y enviado al correo electrónico ${email}.`
+        });
+    }
+  );
 
 };
 
