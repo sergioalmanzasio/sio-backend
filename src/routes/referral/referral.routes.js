@@ -6,7 +6,7 @@ import {
 } from '../../controllers/referral/referral.controller.js';
 import { authMiddleware } from '../../middlewares/authMiddleware.js';
 
-router.post('/create-referred-exist-customer', authMiddleware, createReferredExistCustomer);
+router.post('/create-referred-exist-customer', createReferredExistCustomer);
 router.post('/my-referrals', authMiddleware, getReferredClients);
 router.post('/by-coordinator-services', authMiddleware, getReferredClientsByToCoordinatorServices);
 router.post('/general-information', authMiddleware, getGeneralInformationOfReferralRequestService);
