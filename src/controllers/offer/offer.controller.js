@@ -351,45 +351,11 @@ export const getCompensationOffers = (req, res) => {
     ORDER BY opr.name, cat.name`,
     (err, result) => {
       if (err) {
-        console.log('OfferController.getCompensationByOperatorIdAndServiceId error:', err);
+        logger.error('OfferController.getCompensationOffers - Error consulta ofertas: ', err);
         return res
           .status(500)
           .json({ message: "Error al consultar ofertas." });
       }
-      // Structure JSON to response
-      /*
-        {
-          "process": "success",
-          "message": "Ofertas obtenidas exitosamente.",
-          "data": [
-            {
-              "operator_name": "Operator 1",
-              "services": [
-                {
-                  "service_type": "Service 1",
-                  "commission": 100,
-                  "commission_value_forrmtaed": "$ 100"
-                },
-                {
-                  "service_type": "Service 2",
-                  "commission": 200,
-                  "commission_value_forrmtaed": "$ 200"
-                }
-              ]
-            },
-            {
-              "operator_name": "Operator 2",
-              "services": [
-                {
-                  "service_type": "Service 2",
-                  "commission": 200,
-                  "commission_value_forrmtaed": "$ 200"
-                }
-              ]
-            }
-          ]
-        }
-      */
       const data = result.rows.reduce((acc, row) => {
         const operator = acc.find((op) => op.operator_name === row.operator_name);
         if (!operator) {

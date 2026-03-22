@@ -129,14 +129,11 @@ export const updateOperator = async (req, res) => {
         message: validateUserWithPermissions.message,
       });
     }
-    console.log('...validateUserWithPermissions: ', validateUserWithPermissions);
 
     const { token: id } = req.params;
-    console.log('...id: ', id);
     let operatorId;
     try {
       const decoded = jwt.verify(id, authConfig.secret);
-      console.log('...decoded: ', decoded);
       operatorId = decoded.operatorId;
     } catch (err) {
       return res.status(400).json({
@@ -144,7 +141,6 @@ export const updateOperator = async (req, res) => {
         message: "El identificador del operador no es válido o ha expirado.",
       });
     }
-    console.log('...operatorId: ', operatorId);
 
     const { name, description, is_active } = req.body;
 
