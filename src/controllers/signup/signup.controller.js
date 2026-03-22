@@ -362,8 +362,8 @@ export const signUpVerifyCode = async (req, res) => {
 
 // SignUp | Resend code
 export const signUpResendCode = async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
+  const { email, name } = req.body;
+  if (!email || !name) {
     return res
       .status(400)
       .json({ message: "Todos los campos son obligatorios." });
@@ -410,7 +410,7 @@ export const signUpResendCode = async (req, res) => {
 
       const resultSendMail = await sendEmailV2(email, 'SIO Colombia - Código de verificación', 'user-registration',
         {
-          email: email,
+          person_name: name,
           code: code,
         });
       if (!resultSendMail) {
