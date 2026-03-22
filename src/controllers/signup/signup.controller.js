@@ -183,7 +183,7 @@ export const signUp = async (req, res) => {
                   [user_id, user_id],
                   (err, result) => {
                     if (err) {
-                      console.log('Error al crear código de referido.', err);
+                      logger.error('SignupController.signUp - Error al crear código de referido: ', err);
                     }
                   }
                 )
@@ -275,7 +275,7 @@ export const signUpGenerateCode = async (req, res) => {
     [email, code],
     async (err, result) => {
       if (err) {
-        console.log('Error al generar código.', err);
+        logger.error('SignupController.signUpGenerateCode - Error al generar código: ', err);
         return res
           .status(500)
           .json({
