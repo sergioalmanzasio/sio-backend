@@ -897,19 +897,19 @@ export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
       });
 
 
-      const smsResult = await sendNotification({
-        channel: NotificationChannels.SMS,
-        to: "+573007858634",
-        subject: `SIO|Colombia(TEST), la orden de servicio ${result.rows[0].tracking_code} cambió a estado ${stateID.description}.`,
-        message: `SIO|Colombia, ${stateID.description.toLowerCase() === 'terminada'
-          ? `La orden de servicio ${result.rows[0].tracking_code} ha sido finalizada con éxito, gracias por tu preferencia.`
-          : `La orden de servicio ${result.rows[0].tracking_code} ha cambiado al estado ${stateID.description} y sigue en proceso.`}`,
-        metadata: {
-          userId: userID,
-          type: "referral-service-request",
-        },
-      });
-      console.log("SMS Result:", smsResult);
+      // const smsResult = await sendNotification({
+      //   channel: NotificationChannels.SMS,
+      //   to: "+573007858634",
+      //   subject: `SIO|Colombia(TEST), la orden de servicio ${result.rows[0].tracking_code} cambió a estado ${stateID.description}.`,
+      //   message: `SIO|Colombia, ${stateID.description.toLowerCase() === 'terminada'
+      //     ? `La orden de servicio ${result.rows[0].tracking_code} ha sido finalizada con éxito, gracias por tu preferencia.`
+      //     : `La orden de servicio ${result.rows[0].tracking_code} ha cambiado al estado ${stateID.description} y sigue en proceso.`}`,
+      //   metadata: {
+      //     userId: userID,
+      //     type: "referral-service-request",
+      //   },
+      // });
+      // console.log("SMS Result:", smsResult);
 
       return res.status(200).json({
         process: "success",
