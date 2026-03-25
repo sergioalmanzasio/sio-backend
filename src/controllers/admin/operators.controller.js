@@ -45,10 +45,17 @@ export const createOperator = async (req, res) => {
       [name, description || null, 'default-icon.png', validateUserWithPermissions.id]
     );
 
+    const operatorData = result.rows[0];
+    operatorData.id = jwt.sign(
+      { operatorId: operatorData.id },
+      authConfig.secret,
+      { expiresIn: "120m" }
+    );
+
     return res.status(200).json({
       process: "success",
       message: "Operador creado exitosamente.",
-      data: result.rows[0],
+      data: operatorData,
     });
 
   } catch (error) {
@@ -216,7 +223,7 @@ export const getAllOperators = async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT id, name, description, is_active FROM operators ORDER BY name ASC"
+      "SELECT id, name, description, is_active, image_name AS logo FROM operators ORDER BY name ASC"
     );
 
     if (result.rows.length === 0) {

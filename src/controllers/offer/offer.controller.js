@@ -72,7 +72,8 @@ export const getOffers = (req, res) => {
         c.name AS category_name,
 
         op.id AS operator_id,
-        op.name AS operator_name
+        op.name AS operator_name,
+        op.image_name AS operator_logo
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
@@ -128,7 +129,8 @@ export const getOfferByOperatorIdRestricted = (req, res) => {
           c.name AS category_name,
 
           op.id AS operator_id,
-          op.name AS operator_name
+          op.name AS operator_name,
+          op.image_name AS operator_logo
 
       FROM offers o
       JOIN categories_offers co ON co.offer_id = o.id
@@ -168,7 +170,8 @@ export const getOfferByOperatorId = (req, res) => {
         c.name AS category_name,
 
         op.id AS operator_id,
-        op.name AS operator_name
+        op.name AS operator_name,
+        op.image_name AS operator_logo
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
@@ -266,7 +269,8 @@ export const getOfferByServiceId = (req, res) => {
         c.name AS category_name,
 
         op.id AS operator_id,
-        op.name AS operator_name
+        op.name AS operator_name,
+        op.image_name AS operator_logo
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
@@ -306,7 +310,8 @@ export const getOfferByOperatorIdAndServiceId = (req, res) => {
         c.name AS category_name,
 
         op.id AS operator_id,
-        op.name AS operator_name
+        op.name AS operator_name,
+        op.image_name AS operator_logo
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
