@@ -17,6 +17,7 @@ import bonusRoutes from "./admin/bonus.routes.js";
 import offersRoutes from "./admin/offers.routes.js";
 import operatorsRoutes from "./admin/operators.routes.js";
 import benefitsRoutes from "./admin/benefits.routes.js";
+import uploadRoutes from "./admin/upload.routes.js";
 
 export default {
   signupRoutes,
@@ -37,5 +38,6 @@ export default {
   bonusRoutes,
   offersRoutes,
   operatorsRoutes,
-  benefitsRoutes
+  benefitsRoutes,
+  uploadRoutes
 };
