@@ -2,10 +2,19 @@ import cloudinary from '../../config/cloudinary.js';
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
+import { userWithPermissions } from "../common/common.controller.js";
 import { logger } from '../../utils/logger.js';
 
 export const uploadImage = async (req, res) => {
   try {
+    const token = req.token;
+    const validateUserWithPermissions = await userWithPermissions(token);
+    if (validateUserWithPermissions.process !== "success") {
+      return res.status(401).json({
+        process: validateUserWithPermissions.process,
+        message: validateUserWithPermissions.message,
+      });
+    }
     const { operatorId } = req.body; // create or update
     if (!req.file || !operatorId) {
       return res.status(400).json({
@@ -33,27 +42,31 @@ export const uploadImage = async (req, res) => {
       const decoded = jwt.verify(operatorId, authConfig.secret);
       operatorIDDecoded = decoded.operatorId;
     } catch (err) {
-      logger.error('uploadController.uploadImage - Error:', err.message);
+      logger.error('uploadController.uploadImage - Error decoded operatorId:', err.message);
       return res.status(400).json({
         process: "error",
         message: "El identificador del operador no es válido o ha expirado.",
       });
     }
 
-    const validateHasLogo = await pool.query(
-      `SELECT image_name FROM operators WHERE id = $1`,
+    const validateOperator = await pool.query(
+      `SELECT * FROM operators WHERE id = $1`,
       [operatorIDDecoded]
     );
 
-    if (validateHasLogo.rows.length === 0) {
+    if (validateOperator.rows.length === 0) {
       return res.status(404).json({
         process: 'error',
         message: 'Lo sentimos, no se pudo encontrar el operador, intente nuevamente más tarde.'
       });
     }
 
-    if (validateHasLogo.rows[0].image_name) {
-      await cloudinary.uploader.destroy(validateHasLogo.rows[0].image_name);
+    if (validateOperator.rows[0].image_name) {
+      if (validateOperator.rows[0].image_name !== 'default-icon.png' || validateOperator.rows[0].image_name !== process.env.CLOUDINARY_DEFAULT_LOGO) {
+        let id = validateOperator.rows[0].image_name.split('/').pop().split('.')[0];
+        id = 'SIO-operators-logos/' + id;
+        await cloudinary.uploader.destroy(id);
+      }
     }
 
     const updateOperator = await pool.query(
@@ -68,7 +81,6 @@ export const uploadImage = async (req, res) => {
       });
     }
 
-    // console.log('.........result', result);
     return res.status(200).json({
       process: 'success',
       message: 'Logo subido correctamente',
@@ -78,7 +90,7 @@ export const uploadImage = async (req, res) => {
       },
     });
   } catch (error) {
-    logger.error('uploadController.uploadImage - Error:', error.message);
+    logger.error('uploadController.uploadImage - General error:', error.message);
     return res.status(500).json({
       process: 'error',
       message: 'Lo sentimos, se presentó un error al subir la imagen, intente nuevamente más tarde.'
