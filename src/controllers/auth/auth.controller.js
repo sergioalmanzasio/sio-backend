@@ -138,7 +138,7 @@ export const getSessionData = (req, res) => {
                     JOIN options_app op ON op.id = roa.option_id 
                     WHERE roa.role_id = $1 AND roa.is_active = TRUE order by op.order_number`,
             [roles[0].id],
-            (err, result) => {
+            async (err, result) => {
               if (err) {
                 logger.error("AuthController.getSessionData - error to query options", {
                   error: err.message,
@@ -146,6 +146,17 @@ export const getSessionData = (req, res) => {
                 });
               }
               options = result.rows;
+
+              let referralCode = '';
+              const getReferralCode = await pool.query(
+                `SELECT * FROM referral_codes WHERE seller_user_id = $1 AND is_active = TRUE`,
+                [userID]
+              );
+
+              if (getReferralCode.rows.length > 0) {
+                referralCode = getReferralCode.rows[0].code;
+              }
+
               res.json({
                 process: "success",
                 message: "Datos para la sesión obtenidos exitosamente.",
@@ -153,6 +164,7 @@ export const getSessionData = (req, res) => {
                   username: person.username,
                   role_id: roles[0].id,
                   role_name: roles[0].name,
+                  referral_code: referralCode,
                   person: {
                     first_name: person.name,
                     middle_name: person.middle_name,
