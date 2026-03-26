@@ -493,4 +493,98 @@ export const updateLocationInfo = async (req, res) => {
 
 };
 
+export const createPersonByReferralCode = async (req, res) => {
+  const { document, document_type_acronym, name, middle_name, last_name, email, phone,
+    department, city, neighborhood, address, type_of_housing,
+    referral_code } = req.body;
+
+  if (!document || !document_type_acronym || !name || !last_name || !email || !phone || !department || !city || !neighborhood || !address || !type_of_housing || !referral_code) {
+    return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
+  }
+
+  const documentType = await getDocumentTypeIdByAcronym(document_type_acronym);
+  if (documentType.process === "error") {
+    // TD-001: Error con obtención de ID de Tipo documento
+    return res.status(400).json({
+      process: "error",
+      message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde. (TD-001)"
+    });
+  }
+
+  const getReferralEmail = await pool.query(
+    `SELECT usr.username 
+      FROM referral_codes rfc 
+      LEFT JOIN users usr ON usr.id = rfc.seller_user_id 
+      WHERE rfc.code = $1`,
+    [referral_code]
+  );
+
+  if (getReferralEmail.rows.length === 0) {
+    return res.status(400).json({
+      process: "error",
+      message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde."
+    });
+  }
+
+  const referral_email = getReferralEmail.rows[0].username;
+  const userExist = await getUserIdByEmail(referral_email);
+  if (userExist.process === "error") {
+    logger.error('PersonController.createPersonByReferralCode - Error al obtener ID de usuario.', userExist, {
+      referral_code: referral_code,
+      referral_email: referral_email,
+    });
+    return res.status(400).json({
+      process: "error",
+      message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde."
+    });
+  }
+
+  pool.query(
+    "INSERT INTO persons (document, document_type_id, name, middle_name, last_name, email, phone, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+    [
+      document,
+      documentType.id,
+      name,
+      middle_name,
+      last_name,
+      email,
+      phone,
+      userExist.id,
+    ],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ process: "error", message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde." });
+      }
+      pool.query(
+        "INSERT INTO person_locations (person_id, country, department, city, neighborhood, address, type_of_housing, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        [
+          result.rows[0].id,
+          '00|Colombia',
+          department,
+          city,
+          neighborhood,
+          address,
+          type_of_housing,
+          userExist.id,
+        ],
+        (err, result) => {
+          if (err) {
+            logger.error('PersonController.createPersonByReferral: Error al crear cliente', err, {
+              client_document: document,
+              client_name: name,
+              client_email: email,
+            });
+            return res.status(500).json({ process: "info", message: "Lo sentimos, no fue posible la creación del cliente, inténte más tarde." });
+          }
+
+          return res.status(200).json({
+            process: "success",
+            message: "Cliente creado exitosamente."
+          });
+        }
+      );
+    }
+  );
+}
+
 
