@@ -469,7 +469,9 @@ export const registerInternalUser = async (req, res) => {
         }
       })
       .catch((error) => {
-        console.log(error);
+        logger.error("SignupController.registerInternalUser - Error al validar persona:", {
+          error: error,
+        });
         return res.status(500).json({ message: "Error al validar persona." });
       })
 
@@ -480,7 +482,9 @@ export const registerInternalUser = async (req, res) => {
         }
       })
       .catch((error) => {
-        console.log(error);
+        logger.error("SignupController.registerInternalUser - Error al validar usuario:", {
+          error: error,
+        });
         return res.status(500).json({ message: "Error al validar usuario." });
       })
 
@@ -541,7 +545,9 @@ export const registerInternalUserWithoutToken = async (req, res) => {
       }
     })
     .catch((error) => {
-      console.log(error);
+      logger.error("SignupController.registerInternalUserWithoutToken - Error al validar persona:", {
+        error: error,
+      });
       return res.status(500).json({ message: "Error al validar persona." });
     })
 
@@ -552,7 +558,9 @@ export const registerInternalUserWithoutToken = async (req, res) => {
       }
     })
     .catch((error) => {
-      console.log(error);
+      logger.error("SignupController.registerInternalUserWithoutToken - Error al validar usuario:", {
+        error: error,
+      });
       return res.status(500).json({ message: "Error al validar usuario." });
     })
 

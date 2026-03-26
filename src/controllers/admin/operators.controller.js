@@ -202,7 +202,9 @@ export const updateOperator = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL updateOperator: ", error);
+    logger.error("OperatorsController.updateOperator - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo actualizar el operador, inténtelo más tarde.",

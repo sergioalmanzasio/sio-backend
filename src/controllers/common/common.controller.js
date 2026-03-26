@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
+import { logger } from "../../utils/logger.js";
 
-// Validate if user exist by username
 export const validateUserExist = async (username) => {
   return new Promise((resolve, reject) => {
     pool.query(
@@ -26,7 +26,6 @@ export const validateUserExist = async (username) => {
   });
 };
 
-// Validate if person exist by document
 export const validatePersonExist = async (document, res) => {
   if (!document) {
     return res.status(400).json({ message: "Documento es obligatorio." });
@@ -46,7 +45,6 @@ export const validatePersonExist = async (document, res) => {
   );
 };
 
-// Validate person by document, email or phone
 export const validatePersonExistByDocumentEmailPhone = (document, email, phone) => {
   return new Promise((resolve, reject) => {
     pool.query(
@@ -54,7 +52,9 @@ export const validatePersonExistByDocumentEmailPhone = (document, email, phone) 
       [document, email, phone],
       (err, result) => {
         if (err) {
-          console.log('err', err);
+          logger.error("CommonController.validatePersonExistByDocumentEmailPhone - Error global:", {
+            error: err,
+          });
           return reject({ process: "error", message: "Error en la base de datos." });
         }
 
@@ -71,7 +71,7 @@ export const validatePersonExistByDocumentEmailPhone = (document, email, phone) 
   });
 };
 
-// Validate if email have code and expiresAt
+
 export const validateCodeAndExpiresAt = (email) => {
   return new Promise((resolve, reject) => {
     pool.query(
@@ -79,7 +79,9 @@ export const validateCodeAndExpiresAt = (email) => {
       [email],
       (err, result) => {
         if (err) {
-          console.log('err', err);
+          logger.error("CommonController.validateCodeAndExpiresAt - Error global:", {
+            error: err,
+          });
           return reject({ process: "error", message: "Error en la base de datos." });
         }
 
@@ -96,14 +98,15 @@ export const validateCodeAndExpiresAt = (email) => {
   });
 }
 
-// Get role id by role name cliente
 export const getRoleIdByClientName = async (res) => {
   await pool.query(
     "SELECT * FROM roles WHERE name = $1",
     ["client"],
     (err, result) => {
       if (err) {
-        console.log('err', err);
+        logger.error("CommonController.getRoleIdByClientName - Error global:", {
+          error: err,
+        });
         return res.status(500).json({ message: "Error al consultar rol." });
       }
       if (result.rows.length === 0) {
@@ -117,7 +120,6 @@ export const getRoleIdByClientName = async (res) => {
   );
 }
 
-// Get role id by role name asesor
 export const getRoleIdByAssistantName = async (res) => {
   await pool.query(
     "SELECT * FROM roles WHERE name = $1",
@@ -137,7 +139,6 @@ export const getRoleIdByAssistantName = async (res) => {
   );
 }
 
-// Get user ID by token
 export const getUserIdByToken = async (req) => {
   return new Promise((resolve, reject) => {
     try {
@@ -171,7 +172,6 @@ export const getUserIdByToken = async (req) => {
   });
 }
 
-// Get role id by role name admplt
 export const getRoleIdByAdminName = async (res) => {
   return new Promise((resolve, reject) => {
     pool.query(
@@ -371,7 +371,6 @@ export const validateUserIsActiveByID = (userId) => {
   })
 }
 
-// CC-010
 export const getTokenByReq = (req) => {
   const authHeader = req.headers.authorization;
   const token = authHeader?.split(" ")[1];
@@ -399,8 +398,6 @@ export const getAuthInfo = (req, infoLabel) => {
   }
 }
 
-
-// Get role ID by name
 export const getRoleIdByName = (roleName) => {
   return new Promise((resolve, reject) => {
     pool.query(
@@ -423,7 +420,6 @@ export const getRoleIdByName = (roleName) => {
   });
 }
 
-// Get document type id by acronym
 export const getDocumentTypeIdByAcronym = (acronym) => {
   return new Promise((resolve, reject) => {
     pool.query(
@@ -665,7 +661,6 @@ export const getPersonIdInUsersByEmail = (email) => {
   });
 }
 
-// Validando si la persona existe en la tabla person y en la tabla users como referido
 export const isPersonHasUserByDocument = (document_number) => {
   return new Promise((resolve, reject) => {
     pool.query(

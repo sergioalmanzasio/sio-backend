@@ -642,8 +642,6 @@ export const calculateCommission = async (req, res) => {
 };
 
 
-// RC-AC-007
-// Obteniendo comisiones disponibles para el usuario referido
 export const getCommissionAvailable = async (req, res) => {
   const userId = req.user.id;
   try {
@@ -742,8 +740,9 @@ export const getCommissionAvailable = async (req, res) => {
       },
     });
   } catch (err) {
-    // RC-AC-007: Error al obtener la comisión
-    console.log('err', err);
+    logger.error("ReferralController.getCommissionAvailable - Error global:", {
+      error: err,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo obtener las comisiones disponibles, inténtelo más tarde. (RC-AC-007).",
@@ -752,7 +751,6 @@ export const getCommissionAvailable = async (req, res) => {
 
 }
 
-// Get commissions/history
 export const getCommissionsHistoryV1 = async (req, res) => {
   try {
     const user = await getUserIdByToken(req);
@@ -769,7 +767,6 @@ export const getCommissionsHistoryV1 = async (req, res) => {
                 TO_CHAR(rco.commission_amount, 'FM999,999,999,990'),
                 ',', '.'
           ) AS commission_amount_formmated,
-          -- rco.created_at, 
           TO_CHAR(
             rco.created_at,
             'Mon FMDD "de" YYYY hh12:mi am'
@@ -796,7 +793,9 @@ export const getCommissionsHistoryV1 = async (req, res) => {
       [user.id],
       (err, result) => {
         if (err) {
-          console.log('err', err);
+          logger.error("ReferralController.getCommissionsHistoryV1 - Error en consulta:", {
+            error: err,
+          });
           return res.status(500).json({
             process: "error",
             message: "Lo sentimos, no se pudo actualizar el estado del pago, inténtelo más tarde. (PCO-AC-002).",
@@ -825,7 +824,9 @@ export const getCommissionsHistoryV1 = async (req, res) => {
       }
     );
   } catch (err) {
-    console.log('err', err);
+    logger.error("ReferralController.getCommissionsHistoryV1 - Error global:", {
+      error: err,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo actualizar el estado del pago, inténtelo más tarde. (PCO-AC-002).",
@@ -833,7 +834,6 @@ export const getCommissionsHistoryV1 = async (req, res) => {
   }
 }
 
-// Get commissions/history filtered by status name
 export const getCommissionsHistory = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -906,7 +906,9 @@ export const getCommissionsHistory = async (req, res) => {
 
     pool.query(query, params, (err, result) => {
       if (err) {
-        console.log('err', err);
+        logger.error("ReferralController.getCommissionsHistory - Error en consulta:", {
+          error: err,
+        });
         return res.status(500).json({
           process: "error",
           message: "Lo sentimos, no se pudo obtener las comisiones, inténtelo más tarde.",
@@ -934,7 +936,9 @@ export const getCommissionsHistory = async (req, res) => {
       });
     });
   } catch (err) {
-    console.log('err', err);
+    logger.error("ReferralController.getCommissionsHistory - Error global:", {
+      error: err,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo obtener las comisiones, inténtelo más tarde.",
@@ -993,8 +997,9 @@ export const getTotalCommision = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL getTotalCommision: ", error);
-
+    logger.error("ReferralController.getTotalCommision - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message:
@@ -1072,8 +1077,9 @@ export const requestPaymentCommission = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL requestPaymentCommission: ", error);
-
+    logger.error("ReferralController.requestPaymentCommission - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message:
@@ -1168,8 +1174,9 @@ export const getReferralBonusesGenerated = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL getReferralBonusesGenerated: ", error);
-
+    logger.error("ReferralController.getReferralBonusesGenerated - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message:
@@ -1332,7 +1339,9 @@ export const getBonusesHistory = async (req, res) => {
 
     pool.query(query, params, (err, result) => {
       if (err) {
-        console.log('err', err);
+        logger.error("ReferralController.getReferralBonusesHistory - Error en consulta:", {
+          error: err,
+        });
         return res.status(500).json({
           process: "error",
           message: "Lo sentimos, no se pudo obtener el historial de bonos, inténtelo más tarde.",
@@ -1360,7 +1369,9 @@ export const getBonusesHistory = async (req, res) => {
     });
 
   } catch (err) {
-    console.log('err', err);
+    logger.error("ReferralController.getReferralBonusesHistory - Error global:", {
+      error: err,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo obtener el historial de bonos, inténtelo más tarde. (RC-AC-012).",
@@ -1408,10 +1419,6 @@ export const referralAppliesForBonusV2 = async (referralUserID) => {
     );
 
     const alreadyReceived = parseInt(bonusTxResult.rows[0].count) > 0;
-
-    // console.log("RULE:", bonus.apply_type);
-    // console.log("SALES:", salesCount);
-    // console.log("BONUS RECEIVED:", alreadyReceived);
 
     let applies = false;
 
@@ -1472,8 +1479,9 @@ export const referralAppliesForBonusV2 = async (referralUserID) => {
     );
 
   } catch (error) {
-    console.log("ERROR referralAppliesForBonus:", error);
-
+    logger.error("ReferralController.referralAppliesForBonus - Error global:", {
+      error: error,
+    });
     return {
       process: "error",
       data: "Error evaluando bono."
@@ -1495,13 +1503,14 @@ const insertBonusToReferalUser = async (referralUserID, bonusID, commissionID, a
     )
 
     if (insertBonusToReferalUser.rows.length === 0) {
-      console.log(`Regla ${ruleName} - No fue posible agregar bono al referido \n
-        referralUserID: ${referralUserID}\n
-        bonus_id: ${bonusID}\n
-        commission_id: ${commissionID}\n
-        amount: ${amount}\n
-        date: ${new Date()}\n
-      `);
+      logger.error("ReferralController.insertBonusToReferalUser - Error global:", {
+        error: "No fue posible agregar bono al referido",
+        referralUserID: referralUserID,
+        bonusID: bonusID,
+        commissionID: commissionID,
+        amount: amount,
+        date: new Date(),
+      });
       return {
         "process": "error",
         "data": `Regla ${ruleName} - No fue posible agregar bono al referido. (RC-AC-HELPER-002).`
@@ -1513,8 +1522,9 @@ const insertBonusToReferalUser = async (referralUserID, bonusID, commissionID, a
       "data": "Bono agregado correctamente."
     }
   } catch (error) {
-    console.log("ERROR GLOBAL insertBonusToReferalUser: ", error);
-
+    logger.error("ReferralController.insertBonusToReferalUser - Error global:", {
+      error: error,
+    });
     return {
       "process": "error",
       "data": "Lo sentimos, no se pudo agregar el bono, inténtelo más tarde. (RC-AC-HELPER-002)."

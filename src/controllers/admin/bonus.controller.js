@@ -2,10 +2,8 @@ import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
 import { userWithPermissions, validateUserIsActive } from "../common/common.controller.js";
+import { logger } from "../../utils/logger.js";
 
-
-// Create a new bonus
-// AC-BN-001
 export const createBonus = async (req, res) => {
   try {
     const token = req.token;
@@ -18,7 +16,6 @@ export const createBonus = async (req, res) => {
     }
 
     const userId = validateUserWithPermissions.id;
-
     const {
       title,
       description,
@@ -32,7 +29,6 @@ export const createBonus = async (req, res) => {
       is_active
     } = req.body;
 
-    // Validar campos obligatorios
     if (!title || !valid_from || !valid_until) {
       return res.status(400).json({
         process: "error",
@@ -40,7 +36,6 @@ export const createBonus = async (req, res) => {
       });
     }
 
-    // Verificar si ya existe un bonus activo
     if (is_active) {
       const activeBonus = await pool.query(
         "SELECT id, title FROM bonuses WHERE is_active = TRUE LIMIT 1"
@@ -54,8 +49,6 @@ export const createBonus = async (req, res) => {
       }
     }
 
-
-    // Insertar el nuevo bono como activo
     const result = await pool.query(
       `INSERT INTO bonuses 
      (title, description, bonus_type, bonus_amount, apply_type, max_times_per_user, min_sales_required, is_active, valid_from, valid_until, created_by)
@@ -83,7 +76,9 @@ export const createBonus = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL createBonus: ", error);
+    logger.error("BonusController.createBonus - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo crear el bono, inténtelo más tarde. (AC-BN-001).",
@@ -91,9 +86,6 @@ export const createBonus = async (req, res) => {
   }
 };
 
-
-// Update an existing bonus
-// AC-BN-002
 export const updateBonus = async (req, res) => {
   try {
     const token = req.token;
@@ -194,7 +186,9 @@ export const updateBonus = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL updateBonus: ", error);
+    logger.error("BonusController.updateBonus - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo actualizar el bonus, inténtelo más tarde. (AC-BN-002).",
@@ -319,7 +313,9 @@ export const getActiveBonus = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL getActiveBonus: ", error);
+    logger.error("BonusController.getActiveBonus - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo obtener el bonus activo, inténtelo más tarde. (AC-BN-003).",
@@ -448,7 +444,9 @@ export const getBonusHistory = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL getBonusHistory: ", error);
+    logger.error("BonusController.getBonusHistory - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo obtener el historial de bonos, inténtelo más tarde. (AC-BN-004).",
@@ -551,7 +549,9 @@ export const getBonusesRequestedPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.log("ERROR GLOBAL getBonusesRequestedPayment: ", error);
+    logger.error("BonusController.getBonusesRequestedPayment - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo obtener los bonos solicitados, inténtelo más tarde. (AC-BN-005).",
@@ -634,7 +634,9 @@ export const paidBonuses = async (req, res) => {
     }
 
   } catch (error) {
-    console.log("ERROR GLOBAL paidBonuses: ", error);
+    logger.error("BonusController.paidBonuses - Error global:", {
+      error: error,
+    });
     return res.status(500).json({
       process: "error",
       message: "Lo sentimos, no se pudo marcar los bonos como pagados, inténtelo más tarde. (AC-BN-006).",
