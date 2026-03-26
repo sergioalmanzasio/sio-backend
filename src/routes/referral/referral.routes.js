@@ -2,11 +2,12 @@ import express from 'express';
 const router = express.Router();
 
 import {
- createReferredExistCustomer, getReferredClients, getReferredClientsByToCoordinatorServices, getGeneralInformationOfReferralRequestService, calculateCommission, requestPaymentCommission, getCommissionAvailable, getTotalCommision, getCommissionsHistory, getReferralBonusesGenerated, requestPaymentBonus, getBonusesHistory
+ createReferredExistCustomer, createReferredExistCustomerByReferralCode, getReferredClients, getReferredClientsByToCoordinatorServices, getGeneralInformationOfReferralRequestService, calculateCommission, requestPaymentCommission, getCommissionAvailable, getTotalCommision, getCommissionsHistory, getReferralBonusesGenerated, requestPaymentBonus, getBonusesHistory
 } from '../../controllers/referral/referral.controller.js';
 import { authMiddleware } from '../../middlewares/authMiddleware.js';
 
 router.post('/create-referred-exist-customer', createReferredExistCustomer);
+router.post('/create-referred-exist-customer-by-referral-code', createReferredExistCustomerByReferralCode);
 router.post('/my-referrals', authMiddleware, getReferredClients);
 router.post('/by-coordinator-services', authMiddleware, getReferredClientsByToCoordinatorServices);
 router.post('/general-information', authMiddleware, getGeneralInformationOfReferralRequestService);
