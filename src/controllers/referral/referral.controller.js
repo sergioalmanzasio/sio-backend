@@ -69,8 +69,6 @@ export const createReferredExistCustomer = async (req, res) => {
       );
     }
   );
-
-
 };
 
 // RC-AC-002
@@ -271,6 +269,78 @@ export const getGeneralInformationOfReferralRequestService = async (req, res) =>
       );
 
 
+    }
+  );
+};
+
+export const createReferredExistCustomerByReferralCode = async (req, res) => {
+  const { referral_code, client_document } = req.body;
+
+  if (!referral_code || !client_document) {
+    return res.status(400).json({ process: "error", message: "Todos los campos son obligatorios." });
+  }
+
+  const personExist = await getPersonIdByDocument(client_document);
+  if (personExist.process === "error") {
+    return res.status(400).json({ process: "error", message: "Asociación de cliente no pudo ser realizada, inténte más tarde." });
+  }
+
+  const referralCodeExist = await pool.query(
+    `SELECT * FROM referral_codes WHERE code = $1 AND is_active = TRUE`,
+    [referral_code]
+  );
+
+  if (referralCodeExist.rows.length === 0) {
+    return res.status(400).json({
+      process: "error",
+      message: "Código de referido no válido."
+    });
+  }
+
+
+  pool.query(
+    "SELECT * FROM referred_clients WHERE user_id = $1 AND person_id = $2",
+    [referralCodeExist.rows[0].seller_user_id, personExist.id],
+    (err, result) => {
+      logger.error('ReferralController.createReferredExistCustomerByReferralCode - Error al validar si el cliente ya esta referido: ', err);
+      if (err) {
+        return res.status(500).json({ process: "error", message: "Error al crear cliente referido, inténte más tarde." });
+      }
+
+      if (result.rows.length > 0) {
+        return res.status(400).json({ process: "error", message: "El cliente ya esta referenciado a este usuario." });
+      }
+      pool.query(
+        "INSERT INTO referred_clients (user_id, person_id, code, created_by, updated_by) VALUES ($1, $2, SUBSTRING(gen_random_uuid()::text FROM 1 FOR 6), $3, $4) RETURNING *",
+        [referralCodeExist.rows[0].seller_user_id, personExist.id, referralCodeExist.rows[0].seller_user_id, referralCodeExist.rows[0].seller_user_id],
+        async (err, result) => {
+          if (err) {
+            // RC-001: Error al crear cliente referido
+            return res.status(500).json({ process: "error", message: "Lo sentimos, no se pudo crear el cliente referido (RC-001)." });
+          }
+
+
+          const coordinatorService = await pool.query(
+            `SELECT ur.user_id FROM user_roles ur 
+            WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'service coordinator') 
+            ORDER BY RANDOM() LIMIT 1`
+          );
+
+          pool.query(
+            `INSERT INTO assigned_referrals (referred_client_id, referred_client_code, MKT_user_id, created_by) 
+            VALUES ($1,$2,$3,$4)`,
+            [result.rows[0].id, result.rows[0].code,
+            coordinatorService.rows.length === 0 ? transversalUUID() : coordinatorService.rows[0].user_id,
+            referralCodeExist.rows[0].seller_user_id],
+            (err, result) => {
+              if (err) {
+                logger.error('ReferralController.createReferredExistCustomer - Error al asociar cliente referido: ', err);
+              }
+              return res.status(200).json({ process: "success", message: "Cliente referido creado exitosamente." });
+            }
+          );
+        }
+      );
     }
   );
 };
