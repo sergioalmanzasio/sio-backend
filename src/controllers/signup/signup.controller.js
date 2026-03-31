@@ -139,7 +139,7 @@ export const signUp = async (req, res) => {
 
           // const roleName = isAssistant ? "assistant" : "client";
           pool.query(
-            "SELECT * FROM roles WHERE name = $1",
+            "SELECT * FROM roles WHERE name = $1 LIMIT 1",
             [roleName],
             async (err, result) => {
               if (err) {

@@ -50,7 +50,7 @@ export const uploadImage = async (req, res) => {
     }
 
     const validateOperator = await pool.query(
-      `SELECT * FROM operators WHERE id = $1`,
+      `SELECT * FROM operators WHERE id = $1 LIMIT 1`,
       [operatorIDDecoded]
     );
 

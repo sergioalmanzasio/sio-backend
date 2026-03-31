@@ -6,7 +6,7 @@ import { logger } from "../../utils/logger.js";
 export const validateUserExist = async (username) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM users WHERE username = $1",
+      "SELECT * FROM users WHERE username = $1 LIMIT 1",
       [username],
       (err, result) => {
         if (err) {
@@ -31,7 +31,7 @@ export const validatePersonExist = async (document, res) => {
     return res.status(400).json({ message: "Documento es obligatorio." });
   }
   await pool.query(
-    "SELECT * FROM persons WHERE document = $1",
+    "SELECT * FROM persons WHERE document = $1 LIMIT 1",
     [document],
     (err, result) => {
       if (err) {
@@ -48,7 +48,7 @@ export const validatePersonExist = async (document, res) => {
 export const validatePersonExistByDocumentEmailPhone = (document, email, phone) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM persons WHERE document = $1 OR email = $2 OR phone = $3",
+      "SELECT * FROM persons WHERE document = $1 OR email = $2 OR phone = $3 LIMIT 1",
       [document, email, phone],
       (err, result) => {
         if (err) {
@@ -100,7 +100,7 @@ export const validateCodeAndExpiresAt = (email) => {
 
 export const getRoleIdByClientName = async (res) => {
   await pool.query(
-    "SELECT * FROM roles WHERE name = $1",
+    "SELECT * FROM roles WHERE name = $1 LIMIT 1",
     ["client"],
     (err, result) => {
       if (err) {
@@ -122,7 +122,7 @@ export const getRoleIdByClientName = async (res) => {
 
 export const getRoleIdByAssistantName = async (res) => {
   await pool.query(
-    "SELECT * FROM roles WHERE name = $1",
+    "SELECT * FROM roles WHERE name = $1 LIMIT 1",
     ["assistant"],
     (err, result) => {
       if (err) {
@@ -175,7 +175,7 @@ export const getUserIdByToken = async (req) => {
 export const getRoleIdByAdminName = async (res) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM roles WHERE name = $1",
+      "SELECT * FROM roles WHERE name = $1 LIMIT 1",
       ["admplt"],
       (err, result) => {
         if (err) {
@@ -196,7 +196,7 @@ export const getRoleIdByAdminName = async (res) => {
 export const getUserIDByReferralSystemSIO = async (res) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM users WHERE username = $1",
+      "SELECT * FROM users WHERE username = $1 LIMIT 1",
       [process.env.EMAILS_SIO_REFERAL],
       (err, result) => {
         if (err) {
@@ -401,7 +401,7 @@ export const getAuthInfo = (req, infoLabel) => {
 export const getRoleIdByName = (roleName) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM roles WHERE name = $1",
+      "SELECT * FROM roles WHERE name = $1 LIMIT 1",
       [roleName],
       (err, result) => {
         if (err) {
@@ -423,7 +423,7 @@ export const getRoleIdByName = (roleName) => {
 export const getDocumentTypeIdByAcronym = (acronym) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM document_types WHERE acronym = $1",
+      "SELECT * FROM document_types WHERE acronym = $1 LIMIT 1",
       [acronym],
       (err, result) => {
         if (err) {
@@ -445,7 +445,7 @@ export const getDocumentTypeIdByAcronym = (acronym) => {
 export const getPersonIdByDocument = (document) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM persons WHERE document = $1",
+      "SELECT * FROM persons WHERE document = $1 LIMIT 1",
       [document],
       (err, result) => {
         if (err) {
@@ -467,7 +467,7 @@ export const getPersonIdByDocument = (document) => {
 export const getUserIdByEmail = (email) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM users WHERE username = $1",
+      "SELECT * FROM users WHERE username = $1 LIMIT 1",
       [email],
       (err, result) => {
         if (err) {
@@ -566,7 +566,7 @@ export const createUserAccount = (user_id, bank_name, account_number, created_by
 export const getBankIdByName = (name) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM banks WHERE name = $1",
+      "SELECT * FROM banks WHERE name = $1 LIMIT 1",
       [name],
       (err, result) => {
         if (err) {
@@ -614,7 +614,7 @@ export const getUserDataBankByUserId = (user_id) => {
 export const getDocumentTypeByName = (name) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM document_types WHERE name = $1",
+      "SELECT * FROM document_types WHERE name = $1 LIMIT 1",
       [name],
       (err, result) => {
         if (err) {
@@ -636,7 +636,7 @@ export const getDocumentTypeByName = (name) => {
 export const getPersonIdInUsersByEmail = (email) => {
   return new Promise((resolve, reject) => {
     pool.query(
-      "SELECT * FROM users WHERE username = $1",
+      "SELECT * FROM users WHERE username = $1 LIMIT 1",
       [email],
       (err, result) => {
         if (err) {

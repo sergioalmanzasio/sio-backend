@@ -647,7 +647,7 @@ export const getCommissionAvailable = async (req, res) => {
   try {
 
     const validateHasReferredClients = await pool.query(
-      `SELECT * FROM referred_clients WHERE user_id = $1`,
+      `SELECT * FROM referred_clients WHERE user_id = $1 LIMIT 1`,
       [userId]
     );
 

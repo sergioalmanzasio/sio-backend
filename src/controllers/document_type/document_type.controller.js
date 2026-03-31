@@ -11,7 +11,7 @@ export const insertDocumentType = (req, res) => {
       .json({ message: "Todos los campos son obligatorios." });
   }
   pool.query(
-    "SELECT * FROM document_types WHERE name = $1 OR acronym = $2",
+    "SELECT * FROM document_types WHERE name = $1 OR acronym = $2 LIMIT 1",
     [name, acronym],
     (err, result) => {
       if (err) {
@@ -57,7 +57,7 @@ export const getAllDocumentTypes = (req, res) => {
 export const getDocumentTypeById = (req, res) => {
   const { id } = req.params;
   pool.query(
-    "SELECT * FROM document_types WHERE id = $1",
+    "SELECT * FROM document_types WHERE id = $1 LIMIT 1",
     [id],
     (err, result) => {
       if (err) {

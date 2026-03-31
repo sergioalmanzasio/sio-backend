@@ -4,7 +4,6 @@ import pool from "../../config/db.config.js";
 import { userWithPermissions } from "../common/common.controller.js";
 import { logger } from "../../utils/logger.js";
 
-// Create a new operator
 export const createOperator = async (req, res) => {
   try {
     const token = req.token;

@@ -465,7 +465,7 @@ export const updateOfferCommissionConfig = async (req, res) => {
     });
   }
 
-  const resultInitialConfig = await pool.query("SELECT * FROM offer_commission_config WHERE id = $1", [offer_commission_config_id]);
+  const resultInitialConfig = await pool.query("SELECT * FROM offer_commission_config WHERE id = $1 LIMIT 1", [offer_commission_config_id]);
   if (resultInitialConfig.rows.length === 0) {
     return res.status(404).json({
       process: "info",

@@ -10,7 +10,7 @@ export const getBenefitsByOfferId = (req, res) => {
   }
 
   // Validate if offer exists
-  pool.query(`SELECT * FROM offers WHERE id = $1`, [offer_id], (err, result) => {
+  pool.query(`SELECT * FROM offers WHERE id = $1 LIMIT 1`, [offer_id], (err, result) => {
     if (err) {
       return res
         .status(500)
@@ -30,18 +30,18 @@ export const getBenefitsByOfferId = (req, res) => {
               JOIN benefits be ON ob.benefit_id = be.id
               WHERE ob.offer_id = $1
               AND ob.is_active
-              AND be.is_active`, 
-  [offer_id], (err, result) => {
-    if (err) {
-      return res
-        .status(500)
-        .json({ message: "Error al consultar beneficios." });
-    }
-    res.json({
-      process: "success",
-      message: "Beneficios obtenidos exitosamente.",
-      count: result.rowCount,
-      data: result.rows,
+              AND be.is_active`,
+    [offer_id], (err, result) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ message: "Error al consultar beneficios." });
+      }
+      res.json({
+        process: "success",
+        message: "Beneficios obtenidos exitosamente.",
+        count: result.rowCount,
+        data: result.rows,
+      });
     });
-  });
 };

@@ -204,7 +204,7 @@ export const validatePersonExistByDocument = async (req, res) => {
   }
 
   pool.query(
-    "SELECT * FROM persons WHERE document = $1",
+    "SELECT * FROM persons WHERE document = $1 LIMIT 1",
     [document],
     (err, result) => {
       if (err) {

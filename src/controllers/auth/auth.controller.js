@@ -17,7 +17,7 @@ dotenv.config();
 export const signIn = (req, res) => {
   const { username, password } = req.body;
   pool.query(
-    "SELECT * FROM users WHERE username = $1",
+    "SELECT * FROM users WHERE username = $1 LIMIT 1",
     [username],
     (err, result) => {
       if (err) {
@@ -149,7 +149,7 @@ export const getSessionData = (req, res) => {
 
               let referralCode = '';
               const getReferralCode = await pool.query(
-                `SELECT * FROM referral_codes WHERE seller_user_id = $1 AND is_active = TRUE`,
+                `SELECT * FROM referral_codes WHERE seller_user_id = $1 AND is_active = TRUE LIMIT 1`,
                 [userID]
               );
 

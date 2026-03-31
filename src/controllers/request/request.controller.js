@@ -197,7 +197,7 @@ export const validatePendingRequest = (req, res) => {
     }
     // Get client_user_id by email
     pool.query(
-      `SELECT * FROM users WHERE username = $1`,
+      `SELECT * FROM users WHERE username = $1 LIMIT 1`,
       [email],
       (err, result) => {
         if (err) {
@@ -423,9 +423,8 @@ export const cancelServiceRequestByClient = (req, res) => {
           "No pudimos validar tu sesión. Accede nuevamente a SIO para continuar con seguridad.",
       });
     }
-    // Get client_user_id by email
     pool.query(
-      `SELECT * FROM users WHERE username = $1`,
+      `SELECT * FROM users WHERE username = $1 LIMIT 1`,
       [email],
       (err, result) => {
         if (err) {
