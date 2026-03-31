@@ -62,6 +62,7 @@ app.use('/api/admin/offers', routes.offersRoutes);
 app.use('/api/admin/operators', routes.operatorsRoutes);
 app.use('/api/admin/benefits', routes.benefitsRoutes);
 app.use('/api/admin/upload', routes.uploadRoutes);
+app.use('/api/admin/categories', routes.categoryAdminRoutes);
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
 //*** Manejador de errores global simple (opcional, pero recomendado para producción)
