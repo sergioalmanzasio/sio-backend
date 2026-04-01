@@ -124,7 +124,7 @@ export const getOffers = async (req, res) => {
 
   try {
     const result = await pool.query(`
-      SELECT o.*, op.name as operator_name, 
+      SELECT o.*, op.name as operator_name, op.is_active as operator_status,
       CASE 
           WHEN cat."name" IS NULL OR cat."name" = '' THEN 'No categorizada'
           ELSE cat."name"
@@ -215,6 +215,7 @@ export const updateOffer = async (req, res) => {
 
   const { id } = req.params;
   const { name, description, price, is_range, date_start, date_end, is_active, operator_name, category_name, benefits } = req.body;
+
 
   try {
     let operator_id = null;
