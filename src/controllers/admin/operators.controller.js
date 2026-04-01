@@ -15,7 +15,7 @@ export const createOperator = async (req, res) => {
       });
     }
 
-    const { name, description } = req.body;
+    const { name, description, color } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -24,7 +24,6 @@ export const createOperator = async (req, res) => {
       });
     }
 
-    // Validate if another operator with the same name exists
     const existingOperator = await pool.query(
       "SELECT id, name FROM operators WHERE LOWER(name) = LOWER($1) LIMIT 1",
       [name]
@@ -43,6 +42,33 @@ export const createOperator = async (req, res) => {
        RETURNING id, name, description`,
       [name, description || null, 'default-icon.png', validateUserWithPermissions.id]
     );
+
+    const getIdColor = await pool.query(
+      `SELECT id FROM available_colors WHERE name_class = $1`,
+      [color]
+    );
+
+    if (getIdColor.rows.length === 0) {
+      logger.error("Operators.Controller - createOperator - error al consultar ID del color para asignar al operdador: ", {
+        operatorId: result.rows[0].id,
+        color,
+        userId: validateUserWithPermissions.id
+      });
+    }
+
+    const addColorToOperator = await pool.query(
+      `INSERT INTO operator_color (operator_id, available_color_id, created_by) VALUES ($1, $2, $3) RETURNING id`,
+      [result.rows[0].id, getIdColor.rows[0].id, validateUserWithPermissions.id]
+    );
+
+    if (addColorToOperator.rows.length === 0) {
+      logger.error("Operators.Controller - createOperator - error al asignar color al operdador: ", {
+        operatorId: result.rows[0].id,
+        color,
+        colorID: getIdColor.rows[0].id,
+        userId: validateUserWithPermissions.id
+      });
+    }
 
     const operatorData = result.rows[0];
     operatorData.id = jwt.sign(
@@ -66,7 +92,6 @@ export const createOperator = async (req, res) => {
   }
 };
 
-// Get operator by ID
 export const getOperatorById = async (req, res) => {
   try {
     const token = req.token;
@@ -124,7 +149,6 @@ export const getOperatorById = async (req, res) => {
   }
 };
 
-// Update operator
 export const updateOperator = async (req, res) => {
   try {
     const token = req.token;
@@ -148,7 +172,7 @@ export const updateOperator = async (req, res) => {
       });
     }
 
-    const { name, description, is_active } = req.body;
+    const { name, description, is_active, color } = req.body;
 
     if (name) {
       const existingOperator = await pool.query(
@@ -182,11 +206,37 @@ export const updateOperator = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         process: "error",
-        message: "Operador no encontrado para actualizar.",
+        message: "Lo sentimos, no fue posible actualizar el operador. Inténtelo más tarde.",
       });
     }
 
-    // Encrypt the returned ID
+    const getIdColor = await pool.query(
+      `SELECT id FROM available_colors WHERE name_class = $1`,
+      [color]
+    );
+
+    if (getIdColor.rows.length === 0) {
+      logger.error("Operators.Controller - updateOperator - error al consultar ID del color para actualizar al operdador: ", {
+        operatorId: result.rows[0].id,
+        color,
+        userId: validateUserWithPermissions.id
+      });
+    }
+
+    const addColorToOperator = await pool.query(
+      `UPDATE operator_color SET operator_id = $1, available_color_id = $2, updated_by = $3 WHERE operator_id = $1 RETURNING id`,
+      [result.rows[0].id, getIdColor.rows[0].id, validateUserWithPermissions.id]
+    );
+
+    if (addColorToOperator.rows.length === 0) {
+      logger.error("Operators.Controller - updateOperator - error al actualizar color al operdador: ", {
+        operatorId: result.rows[0].id,
+        color,
+        colorID: getIdColor.rows[0].id,
+        userId: validateUserWithPermissions.id
+      });
+    }
+
     const operatorData = result.rows[0];
     operatorData.id = jwt.sign(
       { operatorId: operatorData.id },
@@ -224,7 +274,13 @@ export const getAllOperators = async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT id, name, description, is_active, image_name AS logo FROM operators ORDER BY name ASC"
+      // "SELECT id, name, description, is_active, image_name AS logo FROM operators ORDER BY name ASC"
+      `SELECT opr.id, opr.name, opr.description, opr.is_active, opr.image_name AS logo, acl.name_class AS color 
+        FROM operators opr 
+        LEFT JOIN operator_color ocl ON ocl.operator_id = opr.id
+        LEFT JOIN available_colors acl ON ocl.available_color_id = acl.id
+        WHERE ocl.is_active = TRUE
+        ORDER BY opr.name ASC`
     );
 
     if (result.rows.length === 0) {

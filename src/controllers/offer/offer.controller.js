@@ -5,7 +5,7 @@ import { logger } from "../../utils/logger.js";
 
 // Get offers, authentication required
 export const getOffersRestricted = (req, res) => {
-  const token = req.cookies.token;
+  const token = req.token;
   if (!token) {
     return res
       .status(401)
@@ -73,14 +73,18 @@ export const getOffers = (req, res) => {
 
         op.id AS operator_id,
         op.name AS operator_name,
-        op.image_name AS operator_logo
+        op.image_name AS operator_logo,
+        acl.name_class AS operator_color 
 
-    FROM offers o
-    JOIN categories_offers co ON co.offer_id = o.id
-    JOIN categories c ON c.id = co.category_id
-    JOIN operators op ON op.id = o.operator_id 
-    WHERE o.is_active = TRUE AND CURRENT_DATE BETWEEN o.date_start AND o.date_end
-    order by o.price asc`,
+      FROM offers o
+      JOIN categories_offers co ON co.offer_id = o.id
+      JOIN categories c ON c.id = co.category_id
+      JOIN operators op ON op.id = o.operator_id
+      LEFT JOIN operator_color ocl ON ocl.operator_id = op.id
+      LEFT JOIN available_colors acl ON ocl.available_color_id = acl.id 
+      WHERE o.is_active = TRUE AND CURRENT_DATE BETWEEN o.date_start AND o.date_end
+      AND ocl.is_active = TRUE AND op.is_active = TRUE
+      order by o.price asc`,
     (err, result) => {
       if (err) {
         return res
@@ -171,14 +175,18 @@ export const getOfferByOperatorId = (req, res) => {
 
         op.id AS operator_id,
         op.name AS operator_name,
-        op.image_name AS operator_logo
+        op.image_name AS operator_logo,
+        acl.name_class AS operator_color
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
     JOIN operators op ON op.id = o.operator_id
+    LEFT JOIN operator_color ocl ON ocl.operator_id = op.id
+    LEFT JOIN available_colors acl ON ocl.available_color_id = acl.id 
     WHERE op.id = $1 AND o.is_active = TRUE
-    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end`,
+    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end
+    AND ocl.is_active = TRUE`,
     [operator_id],
     (err, result) => {
       if (err) {
@@ -270,14 +278,18 @@ export const getOfferByServiceId = (req, res) => {
 
         op.id AS operator_id,
         op.name AS operator_name,
-        op.image_name AS operator_logo
+        op.image_name AS operator_logo,
+        acl.name_class AS operator_color
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
     JOIN operators op ON op.id = o.operator_id
+    LEFT JOIN operator_color ocl ON ocl.operator_id = op.id
+    LEFT JOIN available_colors acl ON ocl.available_color_id = acl.id 
     WHERE c.id = $1 AND o.is_active = TRUE
-    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end`,
+    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end
+    AND ocl.is_active = TRUE`,
     [service_id],
     (err, result) => {
       if (err) {
@@ -311,14 +323,18 @@ export const getOfferByOperatorIdAndServiceId = (req, res) => {
 
         op.id AS operator_id,
         op.name AS operator_name,
-        op.image_name AS operator_logo
+        op.image_name AS operator_logo,
+        acl.name_class AS operator_color
 
     FROM offers o
     JOIN categories_offers co ON co.offer_id = o.id
     JOIN categories c ON c.id = co.category_id
     JOIN operators op ON op.id = o.operator_id
+    LEFT JOIN operator_color ocl ON ocl.operator_id = op.id
+    LEFT JOIN available_colors acl ON ocl.available_color_id = acl.id 
     WHERE op.id = $1 AND c.id = $2 AND o.is_active = TRUE
-    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end`,
+    AND CURRENT_DATE BETWEEN o.date_start AND o.date_end
+    AND ocl.is_active = TRUE`,
     [operator_id, service_id],
     (err, result) => {
       if (err) {
