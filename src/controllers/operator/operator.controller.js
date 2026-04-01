@@ -5,7 +5,7 @@ import authConfig from "../../config/auth.config.js";
 // Get operators, no authentication required
 export const getOperators = (req, res) => {
   pool.query(
-    "SELECT * FROM operators WHERE is_active = true",
+    "SELECT * FROM operators",
     (err, result) => {
       if (err) {
         return res
