@@ -13,7 +13,8 @@ app.set("trust proxy", 1);
 const allowedOrigins = [
  'http://localhost:3000',   // o el puerto que uses
  'http://localhost:5173',   // si usas Vite
- 'https://sio-mvp.vercel.app'
+ 'https://sio-mvp.vercel.app',
+ 'https://sio-frontend.vercel.app'
 ];
 
 const corsOptions = {
