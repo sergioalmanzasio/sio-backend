@@ -14,7 +14,9 @@ const allowedOrigins = [
  'http://localhost:3000',   // o el puerto que uses
  'http://localhost:5173',   // si usas Vite
  'https://sio-mvp.vercel.app',
- 'https://sio-frontend.vercel.app'
+ 'https://sio-frontend.vercel.app',
+ 'https://siocolombia.com',
+ 'https://www.siocolombia.com'
 ];
 
 const corsOptions = {
