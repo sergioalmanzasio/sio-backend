@@ -10,7 +10,7 @@ export const validateUserExist = async (username) => {
       [username],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error en la base de datos." });
+          return resolve({ process: "error", message: "Error en la base de datos." });
         }
 
         if (result.rows.length > 0) {
@@ -55,7 +55,7 @@ export const validatePersonExistByDocumentEmailPhone = (document, email, phone) 
           logger.error("CommonController.validatePersonExistByDocumentEmailPhone - Error global:", {
             error: err,
           });
-          return reject({ process: "error", message: "Error en la base de datos." });
+          return resolve({ process: "error", message: "Error en la base de datos." });
         }
 
         if (result.rows.length > 0) {
@@ -82,7 +82,7 @@ export const validateCodeAndExpiresAt = (email) => {
           logger.error("CommonController.validateCodeAndExpiresAt - Error global:", {
             error: err,
           });
-          return reject({ process: "error", message: "Error en la base de datos." });
+          return resolve({ process: "error", message: "Error en la base de datos." });
         }
 
         if (result.rows.length > 0) {
@@ -179,10 +179,10 @@ export const getRoleIdByAdminName = async (res) => {
       ["admplt"],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar rol." });
+          return resolve({ process: "error", message: "Error al consultar rol." });
         }
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Rol no encontrado." });
+          return resolve({ process: "error", message: "Rol no encontrado." });
         }
         return resolve({
           message: "Rol encontrado.",
@@ -405,11 +405,11 @@ export const getRoleIdByName = (roleName) => {
       [roleName],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar rol." });
+          return resolve({ process: "error", message: "Error al consultar rol." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Rol no encontrado." });
+          return resolve({ process: "error", message: "Rol no encontrado." });
         }
         return resolve({
           message: "Rol encontrado.",
@@ -449,11 +449,11 @@ export const getPersonIdByDocument = (document) => {
       [document],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar persona." });
+          return resolve({ process: "error", message: "Error al consultar persona." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Persona no encontrada." });
+          return resolve({ process: "error", message: "Persona no encontrada." });
         }
         return resolve({
           message: "Persona encontrada.",
@@ -525,7 +525,7 @@ export const createPersonLocation = (person_id, department, city, neighborhood, 
       ],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al crear ubicación de persona." });
+          return resolve({ process: "error", message: "Error al crear ubicación de persona." });
         }
         return resolve({
           process: "success",
@@ -570,11 +570,11 @@ export const getBankIdByName = (name) => {
       [name],
       (err, result) => {
         if (err) {
-          return reject({ process: "error", message: "Error al consultar banco." });
+          return resolve({ process: "error", message: "Error al consultar banco." });
         }
 
         if (result.rows.length === 0) {
-          return reject({ process: "error", message: "Banco no encontrado." });
+          return resolve({ process: "error", message: "Banco no encontrado." });
         }
         return resolve({
           message: "Banco encontrado.",
