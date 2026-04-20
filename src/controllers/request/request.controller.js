@@ -617,8 +617,6 @@ export const addReferralServiceRequest = async (req, res) => {
         });
       }
 
-
-      // sendEmailV2('rianveal@gmail.com', "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
       sendEmailV2(dataPersonReferral.rows[0].referral_email, "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
         referral_name: dataPersonReferral.rows[0].referral_name,
         client_name: dataPersonReferral.rows[0].client_name,
@@ -887,7 +885,7 @@ export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
       }
 
       // Send email to referral
-      const email = 'rianveal@gmail.com';
+      const email = dataReferral.rows[0].referral_email
       // dataReferral.rows[0].referral_email
       sendEmailV2(email, "Actualización: Tu orden de servicio 📝", "notification-update-request", {
         referral_name: dataReferral.rows[0].referral_name,
