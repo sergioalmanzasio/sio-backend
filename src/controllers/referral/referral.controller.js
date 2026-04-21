@@ -1274,7 +1274,7 @@ export const getBonusesHistory = async (req, res) => {
       'Pagado': 'PAID',
     };
 
-    const isAll = status_name.toLowerCase() === 'todas';
+    const isAll = status_name.toLowerCase() === 'todas' || status_name.toLowerCase() === 'todos';
 
     const baseQuery = `
       SELECT btr.id AS bonus_transaction_id,
