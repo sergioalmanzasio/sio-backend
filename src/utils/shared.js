@@ -224,18 +224,23 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
     case 'notification-update-request': // notification update request
       templateContent = fs.readFileSync(templatePathNotificationUpdateRequest, 'utf-8');
       const { referral_name: refName, order_number: orderNum, new_status } = options;
+      let statusVerbText = new_status.toLowerCase() === 'terminada'
+        ? '¡Excelente noticia! La orden de servicio ha sido <strong>finalizada con éxito</strong>. Esto significa que tu gestión como referente ha culminado de manera positiva y el proceso de comisión sigue su curso.'
+        : new_status.toLowerCase() === 'no aprobada'
+          ? 'Queremos informarte que la orden de servicio de tu referido en SIO ha cambiado de estado y no se ha podido culminar el proceso con éxito.'
+          : 'Queremos informarte que la orden de servicio de tu referido en SIO ha cambiado de estado y sigue avanzando en el proceso.'
+      let statusComplementText = new_status.toLowerCase() === 'terminada'
+        ? 'Si tienes nuevos referidos en mente o alguna duda sobre tus pagos, no dudes en contactar a nuestro equipo de ventas. ¡Vamos por más!'
+        : new_status.toLowerCase() === 'no aprobada'
+          ? 'En esta ocasión, no se ha podido culminar el proceso de la orden de servicio con éxito. Sin embargo, ¡no te desanimes! En el mundo de las ventas, cada experiencia nos prepara para el próximo gran cierre.'
+          : 'Nuestro equipo está trabajando para completar tu solicitud lo antes posible. Si tienes alguna duda sobre este proceso, no dudes en contactar a nuestro equipo de ventas.'
+
       templateContent = templateContent
         .replace('{{referral_name}}', refName)
         .replace('{{order_number}}', orderNum)
         .replace('{{new_status}}', new_status)
-        .replace('{{status_verb}}', new_status.toLowerCase() === 'terminada'
-          ? '¡Excelente noticia! La orden de servicio ha sido <strong>finalizada con éxito</strong>. Esto significa que tu gestión como referente ha culminado de manera positiva y el proceso de comisión sigue su curso.'
-          : 'Queremos informarte que la orden de servicio de tu referido en SIO ha cambiado de estado y sigue avanzando en el proceso.')
-        .replace('{{status_complement}}', new_status.toLowerCase() === 'terminada'
-          ? 'Si tienes nuevos referidos en mente o alguna duda sobre tus pagos, no dudes en contactar a nuestro equipo de ventas. ¡Vamos por más!'
-          : new_status.toLowerCase() === 'no aprobada'
-            ? 'En esta ocasión, no se ha podido culminar el proceso de la orden de servicio con éxito. Sin embargo, ¡no te desanimes! En el mundo de las ventas, cada experiencia nos prepara para el próximo gran cierre.'
-            : 'Nuestro equipo está trabajando para completar tu solicitud lo antes posible. Si tienes alguna duda sobre este proceso, no dudes en contactar a nuestro equipo de ventas.');
+        .replace('{{status_verb}}', statusVerbText)
+        .replace('{{status_complement}}', statusComplementText);
       break;
 
     case 'recovery-password':
