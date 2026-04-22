@@ -4,6 +4,9 @@ import pool from "../../config/db.config.js";
 import { transversalUUID, sendEmail } from "../../utils/shared.js";
 import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken, validateUserIsActive, validateUserIsActiveByID } from "../common/common.controller.js";
 import { logger } from "../../utils/logger.js";
+import dotenv from 'dotenv';
+dotenv.config();
+
 
 // RC : Referral Controller
 // AC : Action Controller
@@ -1065,11 +1068,41 @@ export const requestPaymentCommission = async (req, res) => {
       });
     }
 
-    // TODO: actualizar estado de comisiones a REQUESTED_PAYMENT
     await pool.query(
       `UPDATE referral_commissions SET status = $1, updated_by = $2 , commission_payment_id = $3, requested_at = $4 WHERE id = $5`,
       ["REQUESTED_PAYMENT", userId, resultInsert.rows[0].id, new Date(), result.rows[0].commission_id]
     );
+
+    const getReferedUserData = await pool.query(
+      `SELECT usr.email, prs.name|| ' ' || prs.middle_name || ' ' || prs.last_name AS referred_name
+        FROM users usr
+        JOIN persons prs ON prs.id = usr.person_id
+        WHERE usr.id = $1`,
+      [result.rows[0].refered_user_id]
+    );
+
+    if (getReferedUserData.rows.length === 0) {
+      logger.error("ReferralController.requestPaymentCommission - Error al obtener datos del referido:", {
+        error: "No se encontraron datos del referido para notificarle el pago de su comisión al área de contabilidad.",
+        refered_user_id: result.rows[0].refered_user_id,
+        commission_payment_id: resultInsert.rows[0].id,
+      });
+    }
+
+    const referredName = getReferedUserData.rows[0].referred_name;
+    const amount = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(result.rows[0].total_amount);
+    const email = process.env.EMAILS_ACCOUNTING_AREA;
+
+    // ENVIAR NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
+    await sendEmail(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
+      referredName,
+      amount,
+    });
 
     return res.status(200).json({
       process: "success",
