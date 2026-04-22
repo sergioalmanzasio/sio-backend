@@ -151,6 +151,7 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
   const templatePathNotificationUpdateRequestClient = path.join(__dirname, 'email-templates', 'notification-update-request-client.html');
   const templatePathRecoveryPassword = path.join(__dirname, 'email-templates', 'recovery-password.html');
   const templatePathWelcomeClientRegistered = path.join(__dirname, 'email-templates', 'welcome-client-registered.html');
+  const templatePathNotificationReferralRequestPaymentCommision = path.join(__dirname, 'email-templates', 'notification-referral-request-payment-commision.html');
   let templateContent;
 
   switch (flow) {
@@ -266,6 +267,14 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
       templateContent = templateContent
         .replace('{{user_name}}', user_name)
         .replace('{{reset_link}}', reset_link);
+      break;
+
+    case 'notification-referral-request-payment-commision':
+      templateContent = fs.readFileSync(templatePathNotificationReferralRequestPaymentCommision, 'utf-8');
+      const { referredName, amount } = options;
+      templateContent = templateContent
+        .replace('{{referred_name}}', referredName)
+        .replace('{{amount}}', amount);
       break;
   }
 
