@@ -623,12 +623,12 @@ export const addReferralServiceRequest = async (req, res) => {
         order_number: dataPersonReferral.rows[0].order_number,
       });
 
-      // TODO: Enviar correo electrónico al cliente, genearar template
-      // sendEmailV2(dataPersonReferral.rows[0].client_email, "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
-      //   referral_name: dataPersonReferral.rows[0].referral_name,
-      //   client_name: dataPersonReferral.rows[0].client_name,
-      //   order_number: dataPersonReferral.rows[0].order_number,
-      // });
+      // Enviar correo electrónico al cliente
+      sendEmailV2(dataPersonReferral.rows[0].client_email, "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated", {
+        referral_name: dataPersonReferral.rows[0].referral_name,
+        client_name: dataPersonReferral.rows[0].client_name,
+        order_number: dataPersonReferral.rows[0].order_number,
+      });
 
 
       // const smsResult = await sendNotification({
@@ -837,8 +837,13 @@ export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
     });
   }
 
+  let complementedQueryInactiveService = '';
+  if (state === 'No aprobada') {
+    complementedQueryInactiveService = `and is_active = false`;
+  }
+
   pool.query(
-    `UPDATE referral_service_requests SET service_request_state_id = $1, updated_by = $2 WHERE id = $3 RETURNING *`,
+    `UPDATE referral_service_requests SET service_request_state_id = $1, updated_by = $2 ${complementedQueryInactiveService} WHERE id = $3 RETURNING *`,
     [stateID.id, userID, service_request_id],
     async (err, result) => {
       if (err) {
