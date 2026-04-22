@@ -1023,7 +1023,8 @@ export const requestPaymentCommission = async (req, res) => {
     }
     const userId = req.user.id;
     const result = await pool.query(
-      `SELECT rcl.user_id as refered_user_id, rco.commission_amount as total_amount, rco.id as commission_id
+      `SELECT rcl.user_id as refered_user_id, rco.commission_amount as total_amount, rco.id as commission_id,
+        split_part(rco.id::text, '-', 5) AS guide_code
         FROM referral_service_requests rsr 
         JOIN referral_commissions rco ON rsr.id = rco.referral_service_request_id
         JOIN referred_clients rcl ON rsr.assigned_referral_code = rcl.code
@@ -1107,6 +1108,7 @@ export const requestPaymentCommission = async (req, res) => {
     await sendEmailV2(emailAdmin, 'Notificación de solicitud de pago de comisión', 'notification-to-admin-request-payment-commision', {
       auxReferredName: referredName,
       auxAmount: amount,
+      auxGuideCode: result.rows[0].guide_code,
     });
 
     return res.status(200).json({

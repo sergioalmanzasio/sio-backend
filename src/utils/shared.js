@@ -280,10 +280,11 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
 
     case 'notification-to-admin-request-payment-commision':
       templateContent = fs.readFileSync(templatePathNotificationToAdminRequestPaymentCommision, 'utf-8');
-      const { auxReferredName, auxAmount } = options;
+      const { auxReferredName, auxAmount, auxGuideCode } = options;
       templateContent = templateContent
         .replace('{{referred_name}}', auxReferredName)
-        .replace('{{amount}}', auxAmount);
+        .replace('{{amount}}', auxAmount)
+        .replace('{{guide_code}}', auxGuideCode);
       break;
   }
 

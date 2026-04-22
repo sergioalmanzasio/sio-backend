@@ -47,7 +47,8 @@ export const getPaymentsRequeriments = async (req, res) => {
         rco.requested_at,
         'TMMon DD "de" YYYY HH12:MI:SS AM'
       ) AS requiered_at,
-      rco.id referral_commission_id
+      rco.id referral_commission_id, 
+      split_part(rco.id::text, '-', 5) AS guide_code
       FROM referral_commissions rco
       JOIN users usr ON usr.id = rco.referral_id
       JOIN persons prs ON prs.id = usr.person_id
