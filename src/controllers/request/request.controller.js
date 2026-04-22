@@ -873,11 +873,13 @@ export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
       const dataReferral = await pool.query(
         `SELECT  
           prsRef.name || ' ' || COALESCE(prsRef.middle_name, '') || ' ' || prsRef.last_name AS referral_name, 
-          usr.username AS referral_email  
+          prsCli.name || ' ' || COALESCE(prsCli.middle_name, '') || ' ' || prsCli.last_name AS client_name,
+          usr.username AS referral_email , prsCli.email AS client_email  
           FROM referral_service_requests rsr
             LEFT JOIN referred_clients rfc ON rsr.assigned_referral_code = rfc.code
             LEFT JOIN users usr ON usr.id = rfc.user_id
             LEFT JOIN persons prsRef ON prsRef.id = usr.person_id
+            LEFT JOIN persons prsCli ON prsCli.id = rfc.person_id
           WHERE rsr.id = $1`,
         [result.rows[0].id]
       );
@@ -895,6 +897,14 @@ export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
         referral_name: dataReferral.rows[0].referral_name,
         order_number: result.rows[0].tracking_code,
         new_status: stateID.description,
+      });
+
+      // Send email to client
+      const emailClient = dataReferral.rows[0].client_email
+      sendEmailV2(emailClient, "Actualización: Tu orden de servicio 📝", "notification-update-request-client", {
+        updateServiceCustomerName: dataReferral.rows[0].client_name,
+        updateServiceOrderNumber: result.rows[0].tracking_code,
+        updateServiceNewStatus: stateID.description,
       });
 
 

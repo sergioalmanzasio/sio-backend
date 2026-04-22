@@ -148,6 +148,7 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
   const templatePathNotificationRequestGenerated = path.join(__dirname, 'email-templates', 'notification-request-generated.html');
   const templatePathNotificationRequestGeneratedClient = path.join(__dirname, 'email-templates', 'notification-request-generated-client.html');
   const templatePathNotificationUpdateRequest = path.join(__dirname, 'email-templates', 'notification-update-request.html');
+  const templatePathNotificationUpdateRequestClient = path.join(__dirname, 'email-templates', 'notification-update-request-client.html');
   const templatePathRecoveryPassword = path.join(__dirname, 'email-templates', 'recovery-password.html');
   const templatePathWelcomeClientRegistered = path.join(__dirname, 'email-templates', 'welcome-client-registered.html');
   let templateContent;
@@ -241,6 +242,22 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
         .replace('{{new_status}}', new_status)
         .replace('{{status_verb}}', statusVerbText)
         .replace('{{status_complement}}', statusComplementText);
+      break;
+
+    case 'notification-update-request-client': // notification update request client
+      templateContent = fs.readFileSync(templatePathNotificationUpdateRequestClient, 'utf-8');
+      const { updateServiceCustomerName, updateServiceOrderNumber, updateServiceNewStatus } = options;
+      let UpdateServiceStatusComplementText = updateServiceNewStatus.toLowerCase() === 'terminada'
+        ? '¡Felicidades! Tu servicio ha sido instalado exitosamente. Esperamos que disfrutes de la mejor experiencia de conectividad con nosotros. Si necesitas asistencia adicional o tienes dudas sobre el funcionamiento, nuestro equipo de soporte técnico estará encantado de ayudarte.'
+        : updateServiceNewStatus.toLowerCase() === 'no aprobada'
+          ? 'En esta ocasión, no ha sido posible culminar el proceso de instalación de tu servicio. Agradecemos tu interés en SIO y te invitamos a contactar a nuestro equipo de atención para explorar otras ofertas o tecnologías disponibles que puedan adaptarse a tu necesidad.'
+          : 'Nuestro equipo operativo está trabajando para avanzar con tu solicitud lo antes posible. Te mantendremos informado sobre cualquier novedad adicional. Si tienes alguna duda sobre tu proceso, no dudes en contactar a nuestro equipo de atención al cliente.'
+
+      templateContent = templateContent
+        .replace('{{update_service_customer_name}}', updateServiceCustomerName)
+        .replace('{{update_service_order_number}}', updateServiceOrderNumber)
+        .replace('{{update_service_new_status}}', updateServiceNewStatus)
+        .replace('{{update_service_status_complement}}', UpdateServiceStatusComplementText);
       break;
 
     case 'recovery-password':
