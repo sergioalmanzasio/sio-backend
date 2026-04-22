@@ -233,7 +233,9 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
           : 'Queremos informarte que la orden de servicio de tu referido en SIO ha cambiado de estado y sigue avanzando en el proceso.')
         .replace('{{status_complement}}', new_status.toLowerCase() === 'terminada'
           ? 'Si tienes nuevos referidos en mente o alguna duda sobre tus pagos, no dudes en contactar a nuestro equipo de ventas. ¡Vamos por más!'
-          : 'Nuestro equipo está trabajando para completar tu solicitud lo antes posible. Si tienes alguna duda sobre este proceso, no dudes en contactar a nuestro equipo de ventas.');
+          : new_status.toLowerCase() === 'no aprobada'
+            ? 'En esta ocasión, no se ha podido culminar el proceso de la orden de servicio con éxito. Sin embargo, ¡no te desanimes! En el mundo de las ventas, cada experiencia nos prepara para el próximo gran cierre.'
+            : 'Nuestro equipo está trabajando para completar tu solicitud lo antes posible. Si tienes alguna duda sobre este proceso, no dudes en contactar a nuestro equipo de ventas.');
       break;
 
     case 'recovery-password':
