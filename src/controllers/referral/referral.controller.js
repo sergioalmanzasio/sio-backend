@@ -1074,7 +1074,7 @@ export const requestPaymentCommission = async (req, res) => {
     );
 
     const getReferedUserData = await pool.query(
-      `SELECT usr.email, prs.name|| ' ' || prs.middle_name || ' ' || prs.last_name AS referred_name
+      `SELECT prs.name|| ' ' || prs.middle_name || ' ' || prs.last_name AS referred_name
         FROM users usr
         JOIN persons prs ON prs.id = usr.person_id
         WHERE usr.id = $1`,
