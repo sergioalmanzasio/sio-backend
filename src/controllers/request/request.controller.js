@@ -626,7 +626,7 @@ export const addReferralServiceRequest = async (req, res) => {
       // Enviar correo electrónico al cliente
       sendEmailV2(dataPersonReferral.rows[0].client_email, "¡Buenas noticias! Nueva orden de servicio 🎉", "notification-request-generated-client", {
         referral_name: dataPersonReferral.rows[0].referral_name,
-        client_names: dataPersonReferral.rows[0].client_name,
+        customer_names: dataPersonReferral.rows[0].client_name,
         customer_order_number: dataPersonReferral.rows[0].order_number,
       });
 
