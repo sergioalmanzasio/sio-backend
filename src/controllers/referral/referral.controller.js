@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
-import { transversalUUID, sendEmail } from "../../utils/shared.js";
+import { transversalUUID, sendEmail, sendEmailV2 } from "../../utils/shared.js";
 import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken, validateUserIsActive, validateUserIsActiveByID } from "../common/common.controller.js";
 import { logger } from "../../utils/logger.js";
 import dotenv from 'dotenv';
@@ -1099,7 +1099,7 @@ export const requestPaymentCommission = async (req, res) => {
     const email = process.env.EMAILS_ACCOUNTING_AREA;
 
     // ENVIAR NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
-    await sendEmail(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
+    await sendEmailV2(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
       referredName,
       amount,
     });
