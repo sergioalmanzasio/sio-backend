@@ -296,7 +296,8 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
         .replace('{{referral_name}}', paidReferredName)
         .replace('{{amount}}', paidAmount)
         .replace('{{guide_code}}', paidGuideCode)
-        .replace('{{bank_name}}', bankName);
+        .replace('{{bank_name}}', bankName)
+        .replace('{{referral_name_paid}}', paidReferredName);
       break;
   }
 
