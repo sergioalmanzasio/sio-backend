@@ -4,8 +4,6 @@ import pool from "../../config/db.config.js";
 import { transversalUUID, sendEmail, sendEmailV2 } from "../../utils/shared.js";
 import { getPersonIdByDocument, getUserIdByEmail, getServiceRequestStateIDByName, getUserIdByToken, validateUserIsActive, validateUserIsActiveByID } from "../common/common.controller.js";
 import { logger } from "../../utils/logger.js";
-import dotenv from 'dotenv';
-dotenv.config();
 
 
 // RC : Referral Controller
@@ -1097,11 +1095,18 @@ export const requestPaymentCommission = async (req, res) => {
       maximumFractionDigits: 0,
     }).format(result.rows[0].total_amount);
     const email = process.env.EMAILS_ACCOUNTING_AREA;
+    const emailAdmin = process.env.EMAILS_ADMIN_PLATFORM;
 
     // ENVIAR NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
     await sendEmailV2(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
       referredName,
       amount,
+    });
+
+    // ENVIAR NOTIFICACIÓN AL ADMINISTRADOR
+    await sendEmailV2(emailAdmin, 'Notificación de solicitud de pago de comisión', 'notification-to-admin-request-payment-commision', {
+      auxReferredName: referredName,
+      auxAmount: amount,
     });
 
     return res.status(200).json({
