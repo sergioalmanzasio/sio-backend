@@ -3,6 +3,7 @@ import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
 import { userWithPermissions } from "../common/common.controller.js";
 import { logger } from "../../utils/logger.js";
+import { sendEmailV2 } from "../../utils/shared.js";
 
 // PCO-AC-001
 export const getPaymentsRequeriments = async (req, res) => {
@@ -129,7 +130,7 @@ export const updatePaymentStatus = async (req, res) => {
     pool.query(
       "UPDATE referral_commissions SET status = 'PAID', paid_at = $2, updated_at = $3 WHERE id = $1",
       [referralCommissionId, new Date(), new Date()],
-      (err, result) => {
+      async (err, result) => {
         if (err) {
           logger.error("Payments.Controller.updatePaymentStatus Error al actualizar el estado del pago", err);
           return res.status(500).json({
@@ -178,6 +179,52 @@ export const updatePaymentStatus = async (req, res) => {
         );
 
         // TODO: Enviar correo electrónico/mensaje de texto al usuario informando el pago de la comisión
+        const getReferralData = await pool.query(`
+          SELECT 
+            '$' || REPLACE(TO_CHAR(rco.commission_value, 'FM999,999,999,990'),',', '.') AS amount,
+            prs.name || ' ' || COALESCE(prs.middle_name, '') || ' ' || prs.last_name AS referral_name,
+            usr.username AS referral_email,
+            ban.name AS bank_name, 
+            usa.account_number AS account_number, 
+            split_part(rco.id::text, '-', 5) AS guide_code
+            FROM referral_commissions rco
+            LEFT JOIN users usr ON usr.id = rco.referral_id
+            LEFT JOIN persons prs ON prs.id = usr.person_id
+            LEFT JOIN user_accounts usa ON usa.user_id = usr.id
+            LEFT JOIN banks ban ON ban.id = usa.bank_id
+            WHERE rco.id = $1
+            AND usa.is_active = true`,
+          [referralCommissionId]
+        );
+
+        if (getReferralData.rows.length === 0) {
+          logger.error("Payments.Controller.updatePaymentStatus Error al obtener información del referido", {
+            referral_commission_id: referralCommissionId,
+            status: "PAID",
+            updated_at: new Date(),
+            reason: "Pago de comisión por venta terminada (instalada).",
+            paidReferredName: getReferralData.rows[0].referral_name,
+            referral_email: getReferralData.rows[0].referral_email,
+            bankName: getReferralData.rows[0].bank_name,
+            accountNumber: getReferralData.rows[0].account_number,
+            paidGuideCode: getReferralData.rows[0].guide_code,
+            paidAmount: getReferralData.rows[0].amount
+          });
+        }
+
+        sendEmailV2(
+          getReferralData.rows[0].referral_email,
+          'Notificación de pago de comisión',
+          'notification-to-referral-paid-commision',
+          {
+            paidReferredName: getReferralData.rows[0].referral_name,
+            bankName: getReferralData.rows[0].bank_name,
+            accountNumber: getReferralData.rows[0].account_number,
+            paidGuideCode: getReferralData.rows[0].guide_code,
+            paidAmount: getReferralData.rows[0].amount
+          }
+        )
+
         return res.status(200).json({
           process: "success",
           message: "Estado del pago actualizado exitosamente.",
