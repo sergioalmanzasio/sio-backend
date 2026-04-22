@@ -839,7 +839,7 @@ export const updateStateAndAddCommentToServiceRequest = async (req, res) => {
 
   let complementedQueryInactiveService = '';
   if (state === 'No aprobada') {
-    complementedQueryInactiveService = `and is_active = false`;
+    complementedQueryInactiveService = `, is_active = false`;
   }
 
   pool.query(
