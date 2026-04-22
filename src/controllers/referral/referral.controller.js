@@ -1102,6 +1102,7 @@ export const requestPaymentCommission = async (req, res) => {
     await sendEmailV2(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
       referredName,
       amount,
+      guideCode: result.rows[0].guide_code,
     });
 
     // ENVIAR NOTIFICACIÓN AL ADMINISTRADOR
