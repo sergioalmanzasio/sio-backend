@@ -248,10 +248,10 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
       templateContent = fs.readFileSync(templatePathNotificationUpdateRequestClient, 'utf-8');
       const { updateServiceCustomerName, updateServiceOrderNumber, updateServiceNewStatus } = options;
       let UpdateServiceStatusComplementText = updateServiceNewStatus.toLowerCase() === 'terminada'
-        ? '¡Felicidades! Tu servicio ha sido instalado exitosamente. Esperamos que disfrutes de la mejor experiencia de conectividad con nosotros. Si necesitas asistencia adicional o tienes dudas sobre el funcionamiento, nuestro equipo de soporte técnico estará encantado de ayudarte.'
+        ? '¡Felicidades! Tu servicio ha sido instalado exitosamente. Esperamos que disfrutes de la mejor experiencia de conectividad con nosotros. Si necesitas asistencia adicional o tienes dudas sobre el funcionamiento, nuestro equipo de soporte técnico estará encantado de ayudarte. Contáctanos al correo electrónico ' + contactEmail + '.'
         : updateServiceNewStatus.toLowerCase() === 'no aprobada'
           ? 'En esta ocasión, no ha sido posible culminar el proceso de instalación de tu servicio. Agradecemos tu interés en SIO y te invitamos a contactar a nuestro equipo de atención para explorar otras ofertas o tecnologías disponibles que puedan adaptarse a tu necesidad.'
-          : 'Nuestro equipo operativo está trabajando para avanzar con tu solicitud lo antes posible. Te mantendremos informado sobre cualquier novedad adicional. Si tienes alguna duda sobre tu proceso, no dudes en contactar a nuestro equipo de atención al cliente.'
+          : 'Nuestro equipo operativo está trabajando para avanzar con tu solicitud lo antes posible. Te mantendremos informado sobre cualquier novedad adicional. Si tienes alguna duda sobre tu proceso, no dudes en contactar a nuestro equipo de atención al cliente al correo electrónico ' + contactEmail;
 
       templateContent = templateContent
         .replace('{{update_service_customer_name}}', updateServiceCustomerName)
