@@ -13,6 +13,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const resend = new Resend(process.env.RESEND_API_KEY);
+const contactEmail = process.env.EMAIL_SIO_CONTACT;
 
 // Generate token
 export const generateToken = (user_id) => {
@@ -145,6 +146,7 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
   const templatePathNotificationClientServiceRequest = path.join(__dirname, 'email-templates', 'notification-client-service-request.html');
   const templatePathNotificationPaymentCommision = path.join(__dirname, 'email-templates', 'notification-payment-commision.html');
   const templatePathNotificationRequestGenerated = path.join(__dirname, 'email-templates', 'notification-request-generated.html');
+  const templatePathNotificationRequestGeneratedClient = path.join(__dirname, 'email-templates', 'notification-request-generated-client.html');
   const templatePathNotificationUpdateRequest = path.join(__dirname, 'email-templates', 'notification-update-request.html');
   const templatePathRecoveryPassword = path.join(__dirname, 'email-templates', 'recovery-password.html');
   const templatePathWelcomeClientRegistered = path.join(__dirname, 'email-templates', 'welcome-client-registered.html');
@@ -208,6 +210,15 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
         .replace('{{referral_name}}', referral_name)
         .replace('{{client_name}}', client_name)
         .replace('{{order_number}}', order_number);
+      break;
+
+    case 'notification-request-generated-client': // notification request generated client
+      templateContent = fs.readFileSync(templatePathNotificationRequestGeneratedClient, 'utf-8');
+      const { customer_names, customer_order_number } = options;
+      templateContent = templateContent
+        .replace('{{customer_names}}', customer_names)
+        .replace('{{customer_order_number}}', customer_order_number)
+        .replace('{{contact_email}}', contactEmail);
       break;
 
     case 'notification-update-request': // notification update request
