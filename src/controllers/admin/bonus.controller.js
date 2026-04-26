@@ -506,7 +506,8 @@ export const getBonusesRequestedPayment = async (req, res) => {
                   ) || ' de ' || 
                   TO_CHAR(btr.requested_at, 'YYYY') || 
                   ' ' || 
-                  TO_CHAR(btr.requested_at, 'HH12:MI AM') AS requested_at_formatted
+                  TO_CHAR(btr.requested_at, 'HH12:MI AM') AS requested_at_formatted,
+                  split_part(btr.id::text, '-', 5) AS guide_code
                 FROM bonus_transactions btr
                 LEFT JOIN users usr ON usr.id = btr.referral_user_id
                 LEFT JOIN persons prs ON prs.id = usr.person_id

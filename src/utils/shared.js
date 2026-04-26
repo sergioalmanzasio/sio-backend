@@ -152,8 +152,10 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
   const templatePathRecoveryPassword = path.join(__dirname, 'email-templates', 'recovery-password.html');
   const templatePathWelcomeClientRegistered = path.join(__dirname, 'email-templates', 'welcome-client-registered.html');
   const templatePathNotificationReferralRequestPaymentCommision = path.join(__dirname, 'email-templates', 'notification-referral-request-payment-commision.html');
+  const templatePathNotificationReferralRequestPaymentBonus = path.join(__dirname, 'email-templates', 'notification-referral-request-payment-bonus.html');
   const templatePathNotificationToAdminRequestPaymentCommision = path.join(__dirname, 'email-templates', 'notification-to-admin-request-payment-commision.html');
   const templatePathNotificationToReferralPaidCommision = path.join(__dirname, 'email-templates', 'notification-to-referral-paid-commision.html');
+  const templatePathNotificationToAdminRequestPaymentBonus = path.join(__dirname, 'email-templates', 'notification-to-admin-request-payment-bonus.html');
   let templateContent;
 
   switch (flow) {
@@ -280,6 +282,21 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
         .replace('{{guide_code}}', guideCode);
       break;
 
+    case 'notification-referral-request-payment-bonus':
+      templateContent = fs.readFileSync(templatePathNotificationReferralRequestPaymentBonus, 'utf-8');
+      const { auxBonusReferredName, auxBonusAmount, auxBonusGuideCode } = options;
+
+      // 1. Generamos el HTML para la lista de guías
+      const auxBonusGuideCodesHtml = Array.isArray(auxBonusGuideCode)
+        ? auxBonusGuideCode.map(code => `<li style="margin-bottom: 4px;">${code}</li>`).join('')
+        : `<li style="margin-bottom: 4px;">${auxBonusGuideCode}</li>`;
+
+      templateContent = templateContent
+        .replace('{{bonus_referred_name}}', auxBonusReferredName)
+        .replace('{{bonus_amount}}', auxBonusAmount)
+        .replace('{{bonus_guide_list}}', auxBonusGuideCodesHtml);
+      break;
+
     case 'notification-to-admin-request-payment-commision':
       templateContent = fs.readFileSync(templatePathNotificationToAdminRequestPaymentCommision, 'utf-8');
       const { auxReferredName, auxAmount, auxGuideCode } = options;
@@ -287,6 +304,20 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
         .replace('{{referred_name}}', auxReferredName)
         .replace('{{amount}}', auxAmount)
         .replace('{{guide_code}}', auxGuideCode);
+      break;
+
+    case 'notification-to-admin-request-payment-bonus':
+      templateContent = fs.readFileSync(templatePathNotificationToAdminRequestPaymentBonus, 'utf-8');
+      const { bonusReferredName, bonusAmount, bonusGuideCode } = options;
+      // 1. Generamos el HTML para la lista de guías
+      const guidesHtml = Array.isArray(bonusGuideCode)
+        ? bonusGuideCode.map(code => `<li style="margin-bottom: 4px;">${code}</li>`).join('')
+        : `<li style="margin-bottom: 4px;">${bonusGuideCode}</li>`;
+
+      templateContent = templateContent
+        .replace('{{referred_name}}', bonusReferredName)
+        .replace('{{amount}}', bonusAmount)
+        .replace('{{guide_list}}', guidesHtml);
       break;
 
     case 'notification-to-referral-paid-commision':

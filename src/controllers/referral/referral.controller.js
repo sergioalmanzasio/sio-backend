@@ -1086,31 +1086,31 @@ export const requestPaymentCommission = async (req, res) => {
         refered_user_id: result.rows[0].refered_user_id,
         commission_payment_id: resultInsert.rows[0].id,
       });
+    } else {
+      const referredName = getReferedUserData.rows[0].referred_name;
+      const amount = new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(result.rows[0].total_amount);
+      const email = process.env.EMAILS_ACCOUNTING_AREA;
+      const emailAdmin = process.env.EMAILS_ADMIN_PLATFORM;
+
+      // ENVIAR NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
+      await sendEmailV2(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
+        referredName,
+        amount,
+        guideCode: result.rows[0].guide_code,
+      });
+
+      // ENVIAR NOTIFICACIÓN AL ADMINISTRADOR
+      await sendEmailV2(emailAdmin, 'Notificación de solicitud de pago de comisión', 'notification-to-admin-request-payment-commision', {
+        auxReferredName: referredName,
+        auxAmount: amount,
+        auxGuideCode: result.rows[0].guide_code,
+      });
     }
-
-    const referredName = getReferedUserData.rows[0].referred_name;
-    const amount = new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(result.rows[0].total_amount);
-    const email = process.env.EMAILS_ACCOUNTING_AREA;
-    const emailAdmin = process.env.EMAILS_ADMIN_PLATFORM;
-
-    // ENVIAR NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
-    await sendEmailV2(email, 'Notificación de solicitud de pago de comisión', 'notification-referral-request-payment-commision', {
-      referredName,
-      amount,
-      guideCode: result.rows[0].guide_code,
-    });
-
-    // ENVIAR NOTIFICACIÓN AL ADMINISTRADOR
-    await sendEmailV2(emailAdmin, 'Notificación de solicitud de pago de comisión', 'notification-to-admin-request-payment-commision', {
-      auxReferredName: referredName,
-      auxAmount: amount,
-      auxGuideCode: result.rows[0].guide_code,
-    });
 
     return res.status(200).json({
       process: "success",
@@ -1258,15 +1258,68 @@ export const requestPaymentBonus = async (req, res) => {
     });
 
     let count = 0;
-    bonusTransactionIds.forEach(async (bonusTransactionId) => {
+    for (const bonusTransactionId of bonusTransactionIds) {
       await pool.query(
         `UPDATE bonus_transactions SET status = $1, requested_at = $2 WHERE id = $3`,
         ["REQUESTED_PAYMENT", new Date(), bonusTransactionId]
       );
       count++;
-    });
+    };
 
     if (count === bonusTransactionIds.length) {
+      const getReferedUserData = await pool.query(
+        `SELECT prs.name|| ' ' || prs.middle_name || ' ' || prs.last_name AS referred_name
+        FROM users usr
+        JOIN persons prs ON prs.id = usr.person_id
+        WHERE usr.id = $1`,
+        [req.user.id]
+      );
+
+      if (getReferedUserData.rows.length === 0) {
+        logger.error("ReferralController.requestPaymentBonus - Error al obtener datos del referido:", {
+          error: "No se encontraron datos del referido para notificarle el pago de su bono al área de contabilidad.",
+          refered_user_id: req.user.id,
+          bonus_transaction_ids: bonusTransactionIds,
+        });
+      } else {
+        const referredName = getReferedUserData.rows[0].referred_name;
+        let ids = '';
+        let guideCodes = '';
+        bonusTransactionIds.forEach(async (bonusTransactionId) => {
+          ids += `'${bonusTransactionId}',`;
+          guideCodes += `'${bonusTransactionId.split('-')[4]}',`;
+        });
+        ids = ids.slice(0, -1);
+        guideCodes = guideCodes.slice(0, -1);
+        const bonusResultByID = await pool.query(
+          `SELECT sum(amount) as total_amount FROM bonus_transactions WHERE id IN (${ids})`
+        );
+
+        const amount = new Intl.NumberFormat('es-CO', {
+          style: 'currency',
+          currency: 'COP',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(bonusResultByID.rows[0].total_amount);
+
+        // ENVIAR NOTIFICACIÓN AL ÁREA DE CONTABILIDAD
+        await sendEmailV2(process.env.EMAILS_ACCOUNTING_AREA, 'Notificación de solicitud de pago de bono(s)', 'notification-referral-request-payment-bonus', {
+          auxBonusReferredName: referredName,
+          auxBonusAmount: amount,
+          auxBonusGuideCode: guideCodes,
+        });
+
+        // ENVIAR NOTIFICACIÓN AL ÁREA DE ADMINSYS
+        sendEmailV2(process.env.EMAILS_ADMIN_PLATFORM, 'Notificación de solicitud de pago de bono(s)',
+          'notification-to-admin-request-payment-bonus',
+          {
+            bonusReferredName: referredName,
+            bonusAmount: amount,
+            bonusGuideCode: guideCodes,
+          }
+        );
+      }
+
       return res.status(200).json({
         process: "success",
         message: "Bono(s) solicitado(s) correctamente.",
@@ -1278,12 +1331,10 @@ export const requestPaymentBonus = async (req, res) => {
       message: "Algunos bonos no se lograron solicitar, inténtelo más tarde.",
     });
 
-
-
   } catch (error) {
     logger.error("ReferralController.requestPaymentBonus - Error global.", error, {
-      user_id: userID,
-      bonusTransactionTokens
+      user_id: req.user.id,
+      bonusTransactionTokens: req.body.bonusTransactionTokens
     });
 
     return res.status(500).json({
