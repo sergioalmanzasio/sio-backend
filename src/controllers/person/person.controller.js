@@ -140,7 +140,7 @@ export const createPerson = async (req, res) => {
 
               const coordinatorService = await pool.query(
                 `SELECT ur.user_id FROM user_roles ur 
-                WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'service coordinator') 
+                WHERE ur.role_id = (SELECT id FROM roles WHERE name = '${process.env.SERVICE_COORDINATOR_ROLE_NAME}') 
                 ORDER BY RANDOM() LIMIT 1`
               );
 
