@@ -3,6 +3,7 @@ import authConfig from "../../config/auth.config.js";
 import pool from "../../config/db.config.js";
 import { userWithPermissions, validateUserIsActive } from "../common/common.controller.js";
 import { logger } from "../../utils/logger.js";
+import { sendEmailV2 } from "../../utils/shared.js";
 
 export const createBonus = async (req, res) => {
   try {
@@ -597,28 +598,77 @@ export const paidBonuses = async (req, res) => {
     }
 
     // Actualizar el estado de cada transacción a PAID
-    let updatedCount = 0;
-    for (const bonusTransactionId of bonusTransactionIds) {
-      const result = await pool.query(
-        `UPDATE bonus_transactions 
-                 SET status = 'PAID', paid_at = CURRENT_TIMESTAMP 
-                 WHERE id = $1 AND status = 'REQUESTED_PAYMENT'
-                 RETURNING id`,
-        [bonusTransactionId]
-      );
-      if (result.rows.length > 0) {
-        updatedCount++;
-      }
-    }
+
+    const result = await pool.query(
+      `UPDATE bonus_transactions 
+       SET status = 'PAID', paid_at = CURRENT_TIMESTAMP 
+       WHERE id = ANY($1) AND status = 'REQUESTED_PAYMENT'
+       RETURNING id`,
+      [bonusTransactionIds]
+    );
+
+    // 2. Extraemos los IDs de los que SI se pagaron
+    const bonusTransactionsIdsPaid = result.rows.map(row => row.id);
+    const updatedCount = bonusTransactionsIdsPaid.length;
+
+    // 3. Identificamos los que NO se pagaron
+    // Filtramos el array original buscando los que no están en la lista de pagados
+    const bonusTransactionsIdsNotPaid = bonusTransactionIds.filter(
+      id => !bonusTransactionsIdsPaid.includes(id)
+    );
 
     if (updatedCount === 0) {
       return res.status(400).json({
         process: "error",
-        message: "No se actualizó ningún bono. Verifique que los bonos tengan estado 'REQUESTED_PAYMENT'.",
+        message: "No se actualizó ningún bono. Verifique que los bonos tengan estado 'Solicitada'.",
       });
     }
 
     if (updatedCount === bonusTransactionIds.length) {
+      // Informar al referido que su(s) bono(s) ha(n) sido pagado(s)
+      const resultBonusPaid = await pool.query(
+        `SELECT 
+            prs.name || ' ' || prs.middle_name || ' ' || prs.last_name AS referred_name, 
+            usr.username email, 
+            ban."name" AS bank_name, 
+            usa.account_number,
+            SUM(btr.amount) AS total_bonus_amount,
+            COUNT(btr.id) AS total_transactions
+        FROM bonus_transactions btr
+        LEFT JOIN users usr ON usr.id = btr.referral_user_id 
+        LEFT JOIN persons prs ON prs.id = usr.person_id
+        LEFT JOIN user_accounts usa ON usa.user_id = usr.id
+        LEFT JOIN banks ban ON ban.id = usa.bank_id
+        WHERE btr.id = ANY($1) 
+        AND usa.is_active = TRUE
+        GROUP BY 
+            prs.id, 
+            prs.name, 
+            prs.middle_name, 
+            prs.last_name, 
+            usr.username, 
+            ban."name", 
+            usa.account_number`,
+        [bonusTransactionsIdsPaid]
+      );
+
+      if (resultBonusPaid.rows.length > 0) {
+        for (const bonusPaid of resultBonusPaid.rows) {
+          const totalBonusFormatted = new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            minimumFractionDigits: 0,
+          }).format(bonusPaid.total_bonus_amount);
+
+          sendEmailV2(bonusPaid.email, "Pago de bono por referidos", "notification-to-referral-paid-bonus", {
+            bonusPaidReferredName: bonusPaid.referred_name,
+            bonusPaidAmount: totalBonusFormatted,
+            bonusPaidBankName: bonusPaid.bank_name,
+          });
+
+        }
+      }
+
       return res.status(200).json({
         process: "success",
         message: `${updatedCount} bono(s) fueron marcados como pagados.`,

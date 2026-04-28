@@ -155,6 +155,7 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
   const templatePathNotificationReferralRequestPaymentBonus = path.join(__dirname, 'email-templates', 'notification-referral-request-payment-bonus.html');
   const templatePathNotificationToAdminRequestPaymentCommision = path.join(__dirname, 'email-templates', 'notification-to-admin-request-payment-commision.html');
   const templatePathNotificationToReferralPaidCommision = path.join(__dirname, 'email-templates', 'notification-to-referral-paid-commision.html');
+  const templatePathNotificationToReferralPaidBonus = path.join(__dirname, 'email-templates', 'notification-to-referral-paid-bonus.html');
   const templatePathNotificationToAdminRequestPaymentBonus = path.join(__dirname, 'email-templates', 'notification-to-admin-request-payment-bonus.html');
   let templateContent;
 
@@ -329,6 +330,16 @@ export const sendEmailV2 = async (email, subject, flow = 'recovery-password', op
         .replace('{{guide_code}}', paidGuideCode)
         .replace('{{bank_name}}', bankName)
         .replace('{{referral_name_paid}}', paidReferredName);
+      break;
+
+    case 'notification-to-referral-paid-bonus':
+      templateContent = fs.readFileSync(templatePathNotificationToReferralPaidBonus, 'utf-8');
+      const { bonusPaidReferredName, bonusPaidAmount, bonusPaidBankName } = options;
+      templateContent = templateContent
+        .replace('{{referral_name}}', bonusPaidReferredName)
+        .replace('{{amount}}', bonusPaidAmount)
+        .replace('{{bank_name}}', bonusPaidBankName)
+        .replace('{{referral_name_paid}}', bonusPaidReferredName);
       break;
   }
 
