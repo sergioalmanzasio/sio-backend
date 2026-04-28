@@ -41,7 +41,7 @@ app.use(cookieParser());
 
 //*** ROUTE FOR WELCOME 
 app.get('/', (req, res) => {
- res.json({ message: 'Bienvenido al backend de fp-003!!' });
+ res.json({ message: 'Bienvenido al backend de SIO!!' });
 });
 
 //*** ROUTES
@@ -77,5 +77,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4001;
 
 app.listen(PORT, () => {
- console.log(`fp-003: Server is running on port ${PORT}`);
+ console.log(`SIO: Server is running on port ${PORT}`);
 });
