@@ -11,25 +11,25 @@ app.set("trust proxy", 1);
 
 //*** CORS CONFIGURATION
 const allowedOrigins = [
- 'http://localhost:3000',   // o el puerto que uses
- 'http://localhost:5173',   // si usas Vite
- 'https://sio-mvp.vercel.app',
- 'https://sio-frontend.vercel.app',
- 'https://siocolombia.com',
- 'https://www.siocolombia.com'
+  'http://localhost:3000',   // o el puerto que uses
+  'http://localhost:5173',   // si usas Vite
+  'https://sio-mvp.vercel.app',
+  'https://sio-frontend.vercel.app',
+  'https://siocolombia.com',
+  'https://www.siocolombia.com'
 ];
 
 const corsOptions = {
- origin: (origin, callback) => {
-  if (!origin || allowedOrigins.includes(origin)) {
-   callback(null, true);
-  } else {
-   callback(new Error('No permitido por CORS'));
-  }
- },
- credentials: true,
- methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
- allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
@@ -41,7 +41,7 @@ app.use(cookieParser());
 
 //*** ROUTE FOR WELCOME 
 app.get('/', (req, res) => {
- res.json({ message: 'Bienvenido al backend de SIO!!' });
+  res.json({ message: 'Bienvenido al backend de SIO!!' });
 });
 
 //*** ROUTES
@@ -66,16 +66,17 @@ app.use('/api/admin/operators', routes.operatorsRoutes);
 app.use('/api/admin/benefits', routes.benefitsRoutes);
 app.use('/api/admin/upload', routes.uploadRoutes);
 app.use('/api/admin/categories', routes.categoryAdminRoutes);
+app.use('/api/users', routes.usersRoutes);
 
 //*** GLOBAL ERROR HANDLER (opcional, pero recomendado para producción)
 //*** Manejador de errores global simple (opcional, pero recomendado para producción)
 app.use((err, req, res, next) => {
- console.error(err.stack);
- res.status(500).send('¡Algo salió mal en el servidor!');
+  console.error(err.stack);
+  res.status(500).send('¡Algo salió mal en el servidor!');
 })
 
 const PORT = process.env.PORT || 4001;
 
 app.listen(PORT, () => {
- console.log(`SIO: Server is running on port ${PORT}`);
+  console.log(`SIO: Server is running on port ${PORT}`);
 });

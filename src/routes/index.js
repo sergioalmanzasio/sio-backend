@@ -19,6 +19,7 @@ import operatorsRoutes from "./admin/operators.routes.js";
 import benefitsRoutes from "./admin/benefits.routes.js";
 import uploadRoutes from "./admin/upload.routes.js";
 import categoryAdminRoutes from "./admin/category.routes.js";
+import usersRoutes from "./admin/users.routes.js";
 
 export default {
   signupRoutes,
@@ -41,5 +42,6 @@ export default {
   operatorsRoutes,
   benefitsRoutes,
   uploadRoutes,
-  categoryAdminRoutes
+  categoryAdminRoutes,
+  usersRoutes
 };
